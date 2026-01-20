@@ -1,0 +1,36 @@
+# Étape 1 : Build de l'application React
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Installation des dépendances
+COPY package*.json ./
+RUN npm install
+
+# Copie des sources
+COPY . .
+
+# Injection de la clé API au moment du build (nécessaire pour Vite)
+ARG API_KEY
+ENV API_KEY=$API_KEY
+
+# Build de l'application
+RUN npm run build
+
+# Étape 2 : Serveur de production (Nginx)
+FROM nginx:stable-alpine
+
+# Copie des fichiers buildés depuis l'étape précédente
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Important : Copie explicite des fichiers de configuration JSON dans le dossier public
+# pour assurer le fonctionnement du "Mode Fichier Local"
+COPY --from=build /app/storage.json /usr/share/nginx/html/
+COPY --from=build /app/config.json /usr/share/nginx/html/
+
+# Utilisation de la configuration Nginx personnalisée
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
