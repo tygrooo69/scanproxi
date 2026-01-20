@@ -60,12 +60,12 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     throw new Error("Le modèle n'a renvoyé aucune réponse.");
   }
 
-  // Nettoyage robuste pour extraire uniquement le bloc JSON
+  // Nettoyage de sécurité pour garantir un parsing JSON valide
   const startIdx = text.indexOf('{');
   const endIdx = text.lastIndexOf('}');
   
   if (startIdx === -1 || endIdx === -1) {
-    throw new Error("L'IA n'a pas retourné de données valides (JSON introuvable).");
+    throw new Error("L'IA n'a pas retourné de JSON valide.");
   }
 
   const cleanJson = text.substring(startIdx, endIdx + 1);
@@ -73,7 +73,7 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
   try {
     return JSON.parse(cleanJson) as ConstructionOrderData;
   } catch (err) {
-    console.error("Erreur de parsing JSON. Contenu brut:", text);
-    throw new Error("Erreur de formatage des données extraites.");
+    console.error("Erreur de parsing JSON. Texte reçu:", text);
+    throw new Error("Échec du décodage des données extraites.");
   }
 }
