@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-// Fix: Use correct exported function names from configService
-import { fetchStorageConfig, syncLocalStorageWithFile } from '../services/configService';
+import { fetchStorageConfig, syncLocalStorageWithFile, exportCurrentConfigAsJson } from '../services/configService';
 
 const AdminWebhook: React.FC = () => {
   const DEFAULT_WEBHOOK = "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
@@ -19,26 +17,32 @@ const AdminWebhook: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('buildscan_webhook_url', url);
+    localStorage.setItem('buildscan_data_source', 'modified');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
   const handleSyncFromServer = async () => {
-    if (!confirm("Voulez-vous écraser vos paramètres locaux par la base de données serveur ?")) return;
+    if (!confirm("Voulez-vous écraser vos paramètres locaux par la base de données serveur (storage.json) ?")) return;
     
     setSyncing(true);
-    // Fix: Use fetchStorageConfig instead of fetchGlobalConfig
     const config = await fetchStorageConfig();
     if (config) {
-      // Fix: Use syncLocalStorageWithFile instead of initializeAppFromConfig
       syncLocalStorageWithFile(config);
       setUrl(config.webhook_url);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setTimeout(() => {
+          setSaved(false);
+          window.location.reload();
+      }, 1000);
     } else {
       alert("Erreur lors de la récupération de la configuration serveur.");
     }
     setSyncing(false);
+  };
+
+  const handleExport = () => {
+    exportCurrentConfigAsJson();
   };
 
   return (
@@ -60,7 +64,7 @@ const AdminWebhook: React.FC = () => {
             className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-2 rounded-lg transition-all flex items-center gap-2 border border-slate-200"
           >
             {syncing ? <i className="fas fa-sync animate-spin"></i> : <i className="fas fa-cloud-download-alt"></i>}
-            Base Serveur
+            Sync Serveur
           </button>
         </div>
 
@@ -85,28 +89,50 @@ const AdminWebhook: React.FC = () => {
           <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 flex gap-3">
             <i className="fas fa-info-circle text-amber-500 mt-0.5"></i>
             <p className="text-xs text-amber-800 leading-relaxed font-medium">
-              Cette URL sera utilisée par le bouton <strong>"Transmettre à l'ERP"</strong>.
+              Les modifications sont enregistrées dans votre navigateur. Pour les rendre permanentes pour tous, utilisez l'exportation ci-dessous.
             </p>
           </div>
 
-          <div className="flex justify-end">
-            <button 
+          <div className="flex justify-end gap-3">
+             <button 
               type="submit" 
               className={`px-8 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ${
                 saved ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100'
               }`}
             >
-              {saved ? <><i className="fas fa-check"></i> Configuration Enregistrée</> : <><i className="fas fa-save"></i> Sauvegarder l'URL</>}
+              {saved ? <><i className="fas fa-check"></i> Enregistré Localement</> : <><i className="fas fa-save"></i> Sauvegarder Localement</>}
             </button>
           </div>
         </form>
       </div>
 
-      <div className="bg-slate-900 rounded-xl p-6 text-white border border-slate-800">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Dernière Synchronisation Serveur</h3>
-        <div className="text-[10px] text-slate-400 font-mono">
-          {localStorage.getItem('buildscan_initialized') ? "Statut : Connecté à la base serveur" : "Statut : Local uniquement"}
+      <div className="bg-slate-900 rounded-xl p-8 text-white border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-4 mb-6">
+            <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center">
+                <i className="fas fa-file-export"></i>
+            </div>
+            <div>
+                <h3 className="text-lg font-bold">Permanence Serveur</h3>
+                <p className="text-slate-400 text-xs">Téléchargez votre configuration pour mettre à jour le fichier storage.json du serveur.</p>
+            </div>
         </div>
+        
+        <div className="bg-slate-800/50 rounded-lg p-4 mb-6 text-xs text-slate-300 leading-relaxed">
+            <ol className="list-decimal list-inside space-y-2">
+                <li>Configurez vos clients, poseurs et votre webhook.</li>
+                <li>Cliquez sur <strong>"Exporter storage.json"</strong> ci-dessous.</li>
+                <li>Remplacez le fichier <code>storage.json</code> à la racine de votre déploiement Docker par celui téléchargé.</li>
+                <li>Redémarrez le conteneur si nécessaire.</li>
+            </ol>
+        </div>
+
+        <button 
+            onClick={handleExport}
+            className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/20"
+        >
+            <i className="fas fa-download"></i>
+            Exporter storage.json
+        </button>
       </div>
     </div>
   );

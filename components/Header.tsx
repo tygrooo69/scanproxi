@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AppView } from '../types';
 
@@ -9,6 +8,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
   const lastSync = localStorage.getItem('buildscan_last_sync');
+  const dataSource = localStorage.getItem('buildscan_data_source');
   
   return (
     <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
@@ -20,9 +20,15 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black tracking-tight uppercase">BuildScan <span className="text-blue-400">AI</span></h1>
-              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
-                Storage: OK
-              </span>
+              {dataSource === 'server' ? (
+                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter flex items-center gap-1">
+                  <i className="fas fa-cloud"></i> Synced
+                </span>
+              ) : (
+                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter flex items-center gap-1">
+                  <i className="fas fa-save"></i> Local Only
+                </span>
+              )}
             </div>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Extraction Intelligente ERP SAMDB</p>
           </div>
@@ -57,8 +63,8 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
           </div>
           
           <div className="text-[9px] text-slate-500 font-mono text-right leading-none">
-            <span className="block mb-1 text-slate-400">LAST SYNC</span>
-            <span>{lastSync ? new Date(lastSync).toLocaleTimeString() : 'WAITING...'}</span>
+            <span className="block mb-1 text-slate-400">DATA_REVISION</span>
+            <span>{lastSync ? new Date(lastSync).toLocaleTimeString() : 'N/A'}</span>
           </div>
         </nav>
       </div>

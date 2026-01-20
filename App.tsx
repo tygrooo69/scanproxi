@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppStatus, ConstructionOrderData, AppView } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
@@ -18,16 +17,20 @@ const App: React.FC = () => {
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
 
-  // Initialisation automatique depuis storage.json
+  // Initialisation intelligente : On ne charge le JSON que si le local est vide
   useEffect(() => {
     const initStorage = async () => {
-      console.log("🔍 BuildScan AI : Vérification de la configuration locale...");
-      const config = await fetchStorageConfig();
-      if (config) {
-        syncLocalStorageWithFile(config);
-        console.log("✨ BuildScan AI : Synchronisation effectuée avec succès.");
+      const isInitialized = localStorage.getItem('buildscan_initialized');
+      
+      if (!isInitialized) {
+        console.log("🆕 BuildScan AI : Première initialisation, chargement du fichier source...");
+        const config = await fetchStorageConfig();
+        if (config) {
+          syncLocalStorageWithFile(config);
+          window.location.reload(); // Recharge pour propager les données
+        }
       } else {
-        console.warn("⚠️ BuildScan AI : Impossible de charger storage.json. Le système utilisera les dernières données locales connues.");
+        console.log("💾 BuildScan AI : Données locales détectées et prêtes.");
       }
     };
     initStorage();
@@ -173,7 +176,7 @@ const App: React.FC = () => {
         <div className="container mx-auto px-4 text-center text-slate-500 text-sm flex items-center justify-center gap-4">
           <span>BuildScan AI &copy; {new Date().getFullYear()}</span>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Mode Fichier Local Actif (storage.json)</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Base de données Locale Active</span>
         </div>
       </footer>
     </div>
