@@ -34,7 +34,7 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
+    model: "gemini-3-flash-preview",
     contents: {
       parts: [
         {
@@ -44,7 +44,7 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
           }
         },
         {
-          text: "Analyse ce document PDF et renvoie uniquement le JSON correspondant aux informations extraites."
+          text: "Analyse ce document PDF et extrait les données demandées au format JSON."
         }
       ]
     },
@@ -55,16 +55,24 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     }
   });
 
-  let text = response.text;
-  if (!text) throw new Error("Le modèle n'a renvoyé aucun contenu.");
+  const text = response.text;
+  if (!text) {
+    throw new Error("Le modèle n'a renvoyé aucune réponse.");
+  }
 
-  // Nettoyage au cas où le modèle renvoie du markdown
-  text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+  const startIdx = text.indexOf('{');
+  const endIdx = text.lastIndexOf('}');
+  
+  if (startIdx === -1 || endIdx === -1) {
+    throw new Error("Le format de la réponse de l'IA est invalide (pas de JSON trouvé).");
+  }
+
+  const cleanJson = text.substring(startIdx, endIdx + 1);
 
   try {
-    return JSON.parse(text) as ConstructionOrderData;
+    return JSON.parse(cleanJson) as ConstructionOrderData;
   } catch (err) {
-    console.error("Erreur de parsing JSON. Texte reçu :", text);
-    throw new Error("Impossible de lire les données extraites. Le format renvoyé par l'IA est invalide.");
+    console.error("Erreur de parsing JSON. Texte brut reçu:", text);
+    throw new Error("Erreur lors de la lecture des données. Veuillez réessayer.");
   }
 }

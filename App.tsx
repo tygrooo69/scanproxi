@@ -66,7 +66,13 @@ const App: React.FC = () => {
       setStatus(AppStatus.SUCCESS);
     } catch (err: any) {
       console.error("Analyse échouée:", err);
-      setError(err.message || "Une erreur inconnue est survenue.");
+      let msg = err.message || "Une erreur inconnue est survenue.";
+      
+      if (msg.includes("429") || msg.toLowerCase().includes("quota")) {
+        msg = "Quota dépassé (Erreur 429). Gemini 3 Flash est plus généreux, mais une courte pause peut être nécessaire.";
+      }
+      
+      setError(msg);
       setStatus(AppStatus.ERROR);
     }
   }, []);
@@ -100,7 +106,7 @@ const App: React.FC = () => {
                   
                   {filePreviewUrl && (
                     <div className="mt-6 animate-in fade-in zoom-in-95 duration-300">
-                      <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Aperçu du scan</p>
+                      <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Aperçu du scan</p>
                       <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner">
                         <iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none" />
                       </div>
@@ -127,7 +133,7 @@ const App: React.FC = () => {
                       <div className="relative animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent shadow-lg"></div>
                     </div>
                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Extraction en cours...</h3>
-                    <p className="text-slate-400 text-sm mt-2">Gemini analyse la structure du document...</p>
+                    <p className="text-slate-400 text-sm mt-2">Le moteur Gemini 3 Flash analyse votre PDF...</p>
                   </div>
                 )}
 
@@ -137,11 +143,11 @@ const App: React.FC = () => {
                       <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
                         <i className="fas fa-exclamation-triangle text-xl"></i>
                       </div>
-                      <div>
+                      <div className="flex-grow">
                         <h3 className="text-lg font-black text-red-800 uppercase tracking-tight">Erreur d'analyse</h3>
                         <p className="text-red-700 mt-1 font-medium">{error}</p>
-                        <button onClick={reset} className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-colors">
-                          Réessayer
+                        <button onClick={reset} className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-colors shadow-lg shadow-red-200">
+                          <i className="fas fa-redo mr-2"></i> Réessayer
                         </button>
                       </div>
                     </div>
@@ -161,9 +167,9 @@ const App: React.FC = () => {
       </main>
       <footer className="bg-white border-t border-slate-200 py-6">
         <div className="container mx-auto px-4 text-center flex items-center justify-center gap-4">
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.2</span>
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.4</span>
           <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-          <span className="text-[10px] font-black uppercase text-blue-600 tracking-tighter bg-blue-50 px-2 py-0.5 rounded">Serveur Node Actif</span>
+          <span className="text-[10px] font-black uppercase text-blue-600 tracking-tighter bg-blue-50 px-2 py-0.5 rounded">Modèle Flash v3</span>
         </div>
       </footer>
     </div>
