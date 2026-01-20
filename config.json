@@ -1,0 +1,28 @@
+
+{
+  "webhook_url": "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324",
+  "default_clients": [
+    {
+      "id": "def-1",
+      "nom": "OPH DE DRANCY",
+      "codeClient": "411DRA038",
+      "typeAffaire": "O3-0"
+    },
+    {
+      "id": "def-2",
+      "nom": "VILOGIA",
+      "codeClient": "411VIL001",
+      "typeAffaire": "O1-A"
+    }
+  ],
+  "default_poseurs": [
+    {
+      "id": "p-1",
+      "nom": "Admin Système",
+      "entreprise": "SAMDB",
+      "telephone": "0100000000",
+      "specialite": "Supervision",
+      "codeSalarie": "ADM-00"
+    }
+  ]
+}

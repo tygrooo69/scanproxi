@@ -1,0 +1,116 @@
+
+import React, { useMemo } from 'react';
+import { ConstructionOrderData, Client } from '../types';
+
+interface ResultCardProps {
+  data: ConstructionOrderData;
+  onReset: () => void;
+}
+
+const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
+  // Récupérer les clients du localStorage pour la correspondance
+  const mappedClient = useMemo(() => {
+    if (!data.nom_client) return null;
+    const saved = localStorage.getItem('buildscan_clients');
+    if (!saved) return null;
+    try {
+      const clients: Client[] = JSON.parse(saved);
+      const searchName = data.nom_client.toLowerCase().trim();
+      
+      // On cherche une correspondance exacte ou partielle
+      return clients.find(c => {
+        const clientRefNom = c.nom.toLowerCase().trim();
+        return searchName === clientRefNom || 
+               searchName.includes(clientRefNom) || 
+               clientRefNom.includes(searchName);
+      });
+    } catch (e) {
+      return null;
+    }
+  }, [data.nom_client]);
+
+  const fields = [
+    { label: "Numéro de Bon", value: data.num_bon_travaux, icon: "fa-hashtag", color: "text-blue-600" },
+    { label: "Nom Client (PDF)", value: data.nom_client, icon: "fa-building", color: "text-indigo-600" },
+    { label: "Adresse d'intervention", value: data.adresse_intervention, icon: "fa-map-marker-alt", color: "text-red-600" },
+    { label: "Contact / Gardien", value: data.coord_gardien, icon: "fa-user-tie", color: "text-emerald-600" },
+    { label: "Délai d'intervention", value: data.delai_intervention, icon: "fa-calendar-alt", color: "text-orange-600" },
+    { label: "Date fixée", value: data.date_intervention, icon: "fa-clock", color: "text-purple-600" },
+  ];
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i className="fas fa-check-circle text-green-500"></i>
+          Résultats de l'extraction
+        </h2>
+        <button 
+          onClick={onReset}
+          className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          Nouveau Scan
+        </button>
+      </div>
+
+      {mappedClient ? (
+        <div className="mx-6 mt-6 bg-emerald-50 border-2 border-emerald-100 rounded-xl p-5 flex items-center justify-between shadow-sm animate-in zoom-in-95 duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-200">
+              <i className="fas fa-link text-xl"></i>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Lien ERP SAMDB Actif</p>
+                <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">Match</span>
+              </div>
+              <p className="text-lg font-black text-slate-800">
+                Code Client : <span className="text-emerald-700 font-mono">{mappedClient.codeClient}</span>
+              </p>
+              <p className="text-xs text-slate-500 font-medium italic">
+                Type Affaire détecté : <span className="text-slate-700 font-bold">{mappedClient.typeAffaire || 'Standard'}</span>
+              </p>
+            </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Source Référentiel</div>
+            <div className="text-xs bg-white border border-emerald-200 text-emerald-700 px-3 py-1 rounded-full font-bold">
+              {mappedClient.nom}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-6 mt-6 bg-slate-50 border border-slate-200 border-dashed rounded-lg p-4 flex items-center gap-3">
+          <i className="fas fa-exclamation-circle text-slate-400"></i>
+          <p className="text-xs text-slate-500 font-medium">
+            Aucun mapping client trouvé pour "<span className="font-bold">{data.nom_client || 'Inconnu'}</span>". 
+            Rendez-vous dans l'onglet <span className="font-bold underline">Clients</span> pour l'ajouter.
+          </p>
+        </div>
+      )}
+      
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {fields.map((field, idx) => (
+          <div key={idx} className="space-y-1">
+            <div className="flex items-center gap-2 mb-1">
+              <i className={`fas ${field.icon} ${field.color} w-4`}></i>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{field.label}</span>
+            </div>
+            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all ${!field.value ? 'italic text-slate-400' : 'font-medium text-slate-900 border-l-4 border-l-slate-200'}`}>
+              {field.value || 'Non renseigné'}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-blue-50 px-6 py-3 flex items-start gap-3 border-t border-blue-100">
+        <i className="fas fa-shield-alt text-blue-500 mt-1"></i>
+        <p className="text-[10px] text-blue-700 leading-relaxed font-bold uppercase tracking-tight">
+          Protection des données : Les informations financières (Prix, TVA) ont été exclues du scan conformément au protocole de sécurité.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default ResultCard;

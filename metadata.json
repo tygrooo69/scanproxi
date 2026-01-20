@@ -1,0 +1,5 @@
+{
+  "name": "BuildScan AI Docker",
+  "description": "A professional construction order analyzer that extracts structured data from scans and PDFs using Gemini AI, ensuring confidentiality and accuracy for operational workflows.",
+  "requestFramePermissions": []
+}
