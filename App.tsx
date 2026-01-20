@@ -16,18 +16,28 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const initApp = async () => {
-      const config = await fetchStorageConfig();
-      if (config) {
-        localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-        localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-        localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-        localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-        localStorage.setItem('buildscan_data_source', 'server');
+      console.log('🚀 Initialisation BuildScan AI (AI Studio mode)...');
+      
+      try {
+        const config = await fetchStorageConfig();
+        if (config) {
+          console.log('✅ Configuration chargée:', {
+            clients: config.clients.length,
+            poseurs: config.poseurs.length,
+            webhook: config.webhook_url.substring(0, 30) + '...'
+          });
+        }
+        setIsInitialized(true);
+      } catch (err) {
+        console.error('❌ Erreur initialisation:', err);
+        setIsInitialized(true); // Continuer quand même
       }
     };
+    
     initApp();
   }, []);
 
@@ -84,6 +94,18 @@ const App: React.FC = () => {
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
   };
+
+  // Afficher un loader pendant l'initialisation
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 font-bold">Initialisation de BuildScan AI...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -169,7 +191,7 @@ const App: React.FC = () => {
         <div className="container mx-auto px-4 text-center flex items-center justify-center gap-4">
           <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.5</span>
           <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-          <span className="text-[10px] font-black uppercase text-blue-600 tracking-tighter bg-blue-50 px-2 py-0.5 rounded italic">Moteur de secours Flash activé</span>
+          <span className="text-[10px] font-black uppercase text-blue-600 tracking-tighter bg-blue-50 px-2 py-0.5 rounded italic">AI Studio Mode</span>
         </div>
       </footer>
     </div>

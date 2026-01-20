@@ -1,4 +1,3 @@
-
 import { Client, Poseur } from '../types';
 
 export interface StorageConfig {
@@ -8,47 +7,119 @@ export interface StorageConfig {
 }
 
 /**
- * Charge la configuration depuis le serveur
+ * Configuration par défaut pour AI Studio (mode standalone)
  */
-export async function fetchStorageConfig(): Promise<StorageConfig | null> {
-  try {
-    const response = await fetch('/api/config');
-    if (!response.ok) throw new Error("Erreur serveur lors du chargement");
-    return await response.json();
-  } catch (err) {
-    console.error("❌ BuildScan AI : Erreur config serveur:", err);
-    return null;
+const DEFAULT_CONFIG: StorageConfig = {
+  webhook_url: "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324",
+  clients: [
+    {
+      id: "def-1",
+      nom: "OPH DE DRANCY",
+      codeClient: "411DRA038",
+      typeAffaire: "O3-0"
+    },
+    {
+      id: "def-2",
+      nom: "VILOGIA",
+      codeClient: "411VIL001",
+      typeAffaire: "O1-A"
+    },
+    {
+      id: "def-3",
+      nom: "CDC HABITAT",
+      codeClient: "411CDC002",
+      typeAffaire: "O2-B"
+    }
+  ],
+  poseurs: [
+    {
+      id: "p-1",
+      nom: "Equipe A - Standard",
+      entreprise: "SAMDB",
+      telephone: "0148365214",
+      specialite: "Menuiserie",
+      codeSalarie: "SAM-A1"
+    }
+  ]
+};
+
+const STORAGE_KEYS = {
+  WEBHOOK: 'buildscan_webhook_url',
+  CLIENTS: 'buildscan_clients',
+  POSEURS: 'buildscan_poseurs',
+  LAST_SYNC: 'buildscan_last_sync',
+  DATA_SOURCE: 'buildscan_data_source'
+};
+
+/**
+ * Initialise le localStorage avec la config par défaut si vide
+ */
+function initializeLocalStorage(): void {
+  if (!localStorage.getItem(STORAGE_KEYS.WEBHOOK)) {
+    localStorage.setItem(STORAGE_KEYS.WEBHOOK, DEFAULT_CONFIG.webhook_url);
+    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(DEFAULT_CONFIG.clients));
+    localStorage.setItem(STORAGE_KEYS.POSEURS, JSON.stringify(DEFAULT_CONFIG.poseurs));
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'default');
+    console.log('✅ Configuration par défaut initialisée dans localStorage');
   }
 }
 
 /**
- * Sauvegarde la configuration complète sur le serveur
+ * Charge la configuration depuis localStorage (AI Studio mode)
+ */
+export async function fetchStorageConfig(): Promise<StorageConfig | null> {
+  try {
+    // Initialiser si nécessaire
+    initializeLocalStorage();
+    
+    const webhook = localStorage.getItem(STORAGE_KEYS.WEBHOOK);
+    const clientsStr = localStorage.getItem(STORAGE_KEYS.CLIENTS);
+    const poseursStr = localStorage.getItem(STORAGE_KEYS.POSEURS);
+    
+    if (!webhook || !clientsStr || !poseursStr) {
+      console.warn('⚠️ Données manquantes, réinitialisation...');
+      initializeLocalStorage();
+      return DEFAULT_CONFIG;
+    }
+    
+    const config: StorageConfig = {
+      webhook_url: webhook,
+      clients: JSON.parse(clientsStr),
+      poseurs: JSON.parse(poseursStr)
+    };
+    
+    console.log('✅ Configuration chargée depuis localStorage (AI Studio mode)');
+    return config;
+    
+  } catch (err) {
+    console.error('❌ Erreur de lecture localStorage:', err);
+    return DEFAULT_CONFIG;
+  }
+}
+
+/**
+ * Sauvegarde la configuration dans localStorage (AI Studio mode)
  */
 export async function saveStorageConfigToServer(config: StorageConfig): Promise<boolean> {
   try {
-    const response = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
-    });
+    localStorage.setItem(STORAGE_KEYS.WEBHOOK, config.webhook_url);
+    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(config.clients));
+    localStorage.setItem(STORAGE_KEYS.POSEURS, JSON.stringify(config.poseurs));
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'localStorage');
     
-    if (!response.ok) throw new Error("Erreur serveur lors de la sauvegarde");
-    
-    // On met aussi à jour le local storage pour une réactivité immédiate de l'UI si nécessaire
-    localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-    localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-    localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-    localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-    
+    console.log('✅ Configuration sauvegardée dans localStorage');
     return true;
+    
   } catch (err) {
-    console.error("❌ BuildScan AI : Échec sauvegarde serveur:", err);
+    console.error('❌ Erreur sauvegarde localStorage:', err);
     return false;
   }
 }
 
 /**
- * Aide à la mise à jour partielle (uniquement clients, ou poseurs, etc.)
+ * Mise à jour partielle de la configuration
  */
 export async function updatePartialConfig(updates: Partial<StorageConfig>): Promise<boolean> {
   const current = await fetchStorageConfig();

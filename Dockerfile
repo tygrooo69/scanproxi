@@ -18,6 +18,7 @@ RUN npm install --production
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./server.js
 COPY --from=build /app/storage.json ./storage.json
+COPY --from=build /app/config.json ./config.json
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
