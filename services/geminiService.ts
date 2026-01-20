@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { ConstructionOrderData } from "../types";
 
@@ -7,14 +6,14 @@ const SYSTEM_INSTRUCTION = `Tu es un agent spécialisé dans l'analyse de docume
 Instructions d'extraction :
 - num_bon_travaux : Extraire le numéro de référence du bon.
 - adresse_intervention : Adresse complète du chantier.
-- coord_gardien : Nom/Téléphone du contact sur place.
-- nom_client : Nom de l'entreprise ou du donneur d'ordre.
-- delai_intervention : Période ou durée de validité.
+- coord_gardien : Nom/Téléphone du contact sur place (gardien ou locataire).
+- nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
+- delai_intervention : Période ou durée de validité mentionnée.
 - date_intervention : Date spécifique de rendez-vous si mentionnée.
 
 Règles critiques :
 1. CONFIDENTIALITÉ : Ne jamais extraire de prix, de montants HT, TTC ou de taux de TVA. Ignore totalement ces zones.
-2. FORMAT : Réponds exclusivement au format JSON.
+2. FORMAT : Réponds exclusivement au format JSON pur.
 3. NULLITÉ : Si un champ n'est pas trouvé, inscris null.
 4. LANGUE : Conserve le texte original pour les adresses et noms.`;
 
@@ -32,11 +31,9 @@ const RESPONSE_SCHEMA = {
 };
 
 export async function analyzeConstructionDocument(base64Data: string, mimeType: string): Promise<ConstructionOrderData> {
-  // Fix: Directly use process.env.API_KEY when initializing GoogleGenAI
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
-    // Fix: Using gemini-3-pro-preview for complex data extraction from documents
     model: "gemini-3-pro-preview",
     contents: {
       parts: [
@@ -47,7 +44,7 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
           }
         },
         {
-          text: "Analyse ce document PDF de bon de commande et extrait les informations selon le schéma défini."
+          text: "Analyse ce document PDF et renvoie uniquement le JSON correspondant aux informations extraites."
         }
       ]
     },
@@ -58,13 +55,16 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     }
   });
 
-  const text = response.text;
-  if (!text) throw new Error("Aucune donnée extraite");
+  let text = response.text;
+  if (!text) throw new Error("Le modèle n'a renvoyé aucun contenu.");
+
+  // Nettoyage au cas où le modèle renvoie du markdown
+  text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
   try {
     return JSON.parse(text) as ConstructionOrderData;
   } catch (err) {
-    console.error("Failed to parse JSON response:", text);
-    throw new Error("Erreur de parsing des données extraites.");
+    console.error("Erreur de parsing JSON. Texte reçu :", text);
+    throw new Error("Impossible de lire les données extraites. Le format renvoyé par l'IA est invalide.");
   }
 }
