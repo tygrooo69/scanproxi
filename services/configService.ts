@@ -1,4 +1,3 @@
-
 import { Client, Poseur } from '../types';
 
 interface StorageConfig {
@@ -7,40 +6,55 @@ interface StorageConfig {
   poseurs: Poseur[];
 }
 
-export async function fetchStorageConfig(): Promise<StorageConfig | null> {
+/**
+ * Tente de charger un fichier JSON de manière sécurisée
+ */
+async function safeFetchJson(filename: string): Promise<any | null> {
   try {
-    // Utilisation d'un chemin relatif 'storage.json' au lieu de '/storage.json'
-    // pour éviter les erreurs 404 dans certains environnements de déploiement.
-    const response = await fetch(`storage.json?t=${Date.now()}`);
+    const response = await fetch(`${filename}?t=${Date.now()}`);
     
-    if (!response.ok) {
-      console.warn(`⚠️ BuildScan AI : storage.json non trouvé (Status: ${response.status}). Tentative avec config.json...`);
-      
-      // Fallback sur config.json si storage.json est manquant
-      const fallbackResponse = await fetch(`config.json?t=${Date.now()}`);
-      
-      if (!fallbackResponse.ok) {
-        throw new Error('Aucun fichier de configuration (storage.json ou config.json) n\'a pu être chargé.');
-      }
-      
-      const config = await fallbackResponse.json();
-      console.log("✅ BuildScan AI : Mode Fichier activé via config.json (Fallback).");
-      
-      // Adaptation du format si config.json utilise des clés différentes
-      return {
-        webhook_url: config.webhook_url,
-        clients: config.clients || config.default_clients || [],
-        poseurs: config.poseurs || config.default_poseurs || []
-      };
+    if (!response.ok) return null;
+
+    // Vérification critique : Si le serveur est en mode SPA, il peut renvoyer index.html (200 OK) pour un fichier manquant.
+    // On vérifie donc que le contenu est bien du JSON.
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.warn(`⚠️ BuildScan AI : ${filename} a renvoyé un type de contenu invalide (${contentType}).`);
+      return null;
     }
 
-    const config = await response.json();
-    console.log("✅ BuildScan AI : Mode Fichier Local activé. storage.json chargé avec succès.");
-    return config;
+    return await response.json();
   } catch (err) {
-    console.error('❌ BuildScan AI : Erreur critique de lecture configuration :', err);
+    console.error(`❌ Erreur lors de la lecture de ${filename}:`, err);
     return null;
   }
+}
+
+export async function fetchStorageConfig(): Promise<StorageConfig | null> {
+  console.log("🚀 BuildScan AI : Tentative de chargement de la configuration...");
+  
+  // 1. Tentative avec storage.json
+  const storageData = await safeFetchJson('storage.json');
+  if (storageData) {
+    console.log("✅ BuildScan AI : storage.json chargé avec succès.");
+    return storageData;
+  }
+
+  // 2. Fallback sur config.json
+  console.warn("⚠️ BuildScan AI : storage.json non trouvé ou invalide. Repli sur config.json...");
+  const configData = await safeFetchJson('config.json');
+  
+  if (configData) {
+    console.log("✅ BuildScan AI : config.json chargé avec succès (Fallback).");
+    return {
+      webhook_url: configData.webhook_url,
+      clients: configData.clients || configData.default_clients || [],
+      poseurs: configData.poseurs || configData.default_poseurs || []
+    };
+  }
+
+  console.error('❌ BuildScan AI : Aucun fichier de configuration valide (storage.json ou config.json) n\'est accessible à la racine.');
+  return null;
 }
 
 export function syncLocalStorageWithFile(config: StorageConfig) {

@@ -6,3 +6,5 @@ dist
 *.md
 Dockerfile
 Dockerfile.txt
+nginx.conf
+.dockerignore

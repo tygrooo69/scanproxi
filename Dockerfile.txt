@@ -1,5 +1,5 @@
 
-# Étape 1 : Build de l'application
+# Étape 1 : Build
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
@@ -10,12 +10,12 @@ ENV VITE_API_KEY=$API_KEY
 ENV API_KEY=$API_KEY
 RUN npm run build
 
-# Étape 2 : Serveur de production
-FROM nginx:stable-alpine
-RUN rm /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY --from=build /app/storage.json /usr/share/nginx/html/
-COPY --from=build /app/config.json /usr/share/nginx/html/
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Étape 2 : Serveur Node (Pas d'Nginx)
+FROM node:20-alpine
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/storage.json ./dist/
+COPY --from=build /app/config.json ./dist/
+EXPOSE 3000
+CMD ["serve", "-s", "dist", "-l", "3000"]
