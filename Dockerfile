@@ -1,5 +1,6 @@
+# CONTENU DU DOCKERFILE POUR BUILDSCAN AI
+# Ce fichier doit être nommé "Dockerfile" (sans extension)
 
-# Étape 1 : Build
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
@@ -10,12 +11,15 @@ ENV VITE_API_KEY=$API_KEY
 ENV API_KEY=$API_KEY
 RUN npm run build
 
-# Étape 2 : Serveur Node (Pas d'Nginx)
 FROM node:20-alpine
 WORKDIR /app
-RUN npm install -g serve
+COPY package*.json ./
+RUN npm install --production
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/storage.json ./dist/
-COPY --from=build /app/config.json ./dist/
+COPY --from=build /app/server.js ./server.js
+COPY --from=build /app/storage.json ./storage.json
+COPY --from=build /app/config.json ./config.json
+ENV NODE_ENV=production
+ENV PORT=3000
 EXPOSE 3000
-CMD ["serve", "-s", "dist", "-l", "3000"]
+CMD ["node", "server.js"]
