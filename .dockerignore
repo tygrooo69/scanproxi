@@ -8,5 +8,4 @@ Dockerfile
 Dockerfile.txt
 nginx.conf
 .dockerignore
-storage.json
 config.json
