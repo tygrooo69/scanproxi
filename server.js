@@ -1,160 +1,94 @@
-import { Client, Poseur } from '../types';
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+import cors from 'cors';
 
-export interface StorageConfig {
-  webhook_url: string;
-  clients: Client[];
-  poseurs: Poseur[];
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const STORAGE_FILE = path.join(__dirname, 'storage.json');
+
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// Servir les fichiers statiques du dossier dist (généré par npm run build)
+app.use(express.static(path.join(__dirname, 'dist')));
 
 /**
- * Configuration par défaut utilisée si le serveur n'est pas accessible
+ * Valeurs par défaut si storage.json est manquant
  */
-const DEFAULT_CONFIG: StorageConfig = {
+const DEFAULT_CONFIG = {
   webhook_url: "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324",
   clients: [
     {
-      id: "def-1",
-      nom: "OPH DE DRANCY",
-      codeClient: "411DRA038",
-      typeAffaire: "O3-0"
+      "id": "def-1",
+      "nom": "OPH DE DRANCY",
+      "codeClient": "411DRA038",
+      "typeAffaire": "O3-0"
     },
     {
-      id: "def-2",
-      nom: "VILOGIA",
-      codeClient: "411VIL001",
-      typeAffaire: "O1-A"
-    },
-    {
-      id: "def-3",
-      nom: "CDC HABITAT",
-      codeClient: "411CDC002",
-      typeAffaire: "O2-B"
+      "id": "def-2",
+      "nom": "VILOGIA",
+      "codeClient": "411VIL001",
+      "typeAffaire": "O1-A"
     }
   ],
   poseurs: [
     {
-      id: "p-1",
-      nom: "Equipe A - Standard",
-      entreprise: "SAMDB",
-      telephone: "0148365214",
-      specialite: "Menuiserie",
-      codeSalarie: "SAM-A1"
+      "id": "p-1",
+      "nom": "Equipe A - Standard",
+      "entreprise": "SAMDB",
+      "telephone": "0148365214",
+      "specialite": "Menuiserie",
+      "codeSalarie": "SAM-A1"
     }
   ]
 };
 
 /**
- * Charge la configuration depuis le serveur, avec fallback sur localStorage
+ * GET /api/config
+ * Renvoie le contenu de storage.json
  */
-export async function fetchStorageConfig(): Promise<StorageConfig | null> {
+app.get('/api/config', async (req, res) => {
   try {
-    // Tentative de chargement depuis le serveur
-    const response = await fetch('/api/config', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    try {
+      const storageContent = await fs.readFile(STORAGE_FILE, 'utf-8');
+      const data = JSON.parse(storageContent);
+      return res.json(data);
+    } catch (err) {
+      console.log("storage.json absent ou corrompu, renvoi des valeurs par défaut.");
+      return res.json(DEFAULT_CONFIG);
     }
-    
-    const config = await response.json();
-    
-    // Mise à jour du localStorage avec les données serveur
-    localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-    localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-    localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-    localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-    localStorage.setItem('buildscan_data_source', 'server');
-    
-    console.log('✅ Configuration chargée depuis le serveur');
-    return config;
-    
-  } catch (err) {
-    console.warn("⚠️ Serveur non accessible, utilisation du localStorage ou config par défaut", err);
-    
-    // Fallback 1 : localStorage
-    const localWebhook = localStorage.getItem('buildscan_webhook_url');
-    const localClients = localStorage.getItem('buildscan_clients');
-    const localPoseurs = localStorage.getItem('buildscan_poseurs');
-    
-    if (localWebhook && localClients && localPoseurs) {
-      try {
-        const config: StorageConfig = {
-          webhook_url: localWebhook,
-          clients: JSON.parse(localClients),
-          poseurs: JSON.parse(localPoseurs)
-        };
-        localStorage.setItem('buildscan_data_source', 'localStorage');
-        console.log('✅ Configuration chargée depuis localStorage');
-        return config;
-      } catch (parseErr) {
-        console.error("Erreur parsing localStorage:", parseErr);
-      }
-    }
-    
-    // Fallback 2 : Config par défaut
-    localStorage.setItem('buildscan_webhook_url', DEFAULT_CONFIG.webhook_url);
-    localStorage.setItem('buildscan_clients', JSON.stringify(DEFAULT_CONFIG.clients));
-    localStorage.setItem('buildscan_poseurs', JSON.stringify(DEFAULT_CONFIG.poseurs));
-    localStorage.setItem('buildscan_data_source', 'default');
-    console.log('✅ Configuration par défaut utilisée');
-    return DEFAULT_CONFIG;
+  } catch (error) {
+    console.error("Erreur API GET config:", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
-}
+});
 
 /**
- * Sauvegarde la configuration complète sur le serveur
+ * POST /api/config
+ * Sauvegarde la configuration reçue dans storage.json
  */
-export async function saveStorageConfigToServer(config: StorageConfig): Promise<boolean> {
+app.post('/api/config', async (req, res) => {
   try {
-    const response = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    // Mise à jour du localStorage immédiatement
-    localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-    localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-    localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-    localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-    localStorage.setItem('buildscan_data_source', 'server');
-    
-    console.log('✅ Configuration sauvegardée sur le serveur');
-    return true;
-    
-  } catch (err) {
-    console.warn("⚠️ Échec sauvegarde serveur, enregistrement en local uniquement:", err);
-    
-    // Fallback : sauvegarde en localStorage uniquement
-    localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-    localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-    localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-    localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-    localStorage.setItem('buildscan_data_source', 'localStorage');
-    
-    console.log('✅ Configuration sauvegardée en localStorage');
-    return true; // On retourne true car la sauvegarde locale a fonctionné
+    const config = req.body;
+    await fs.writeFile(STORAGE_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Erreur API POST config:", error);
+    res.status(500).json({ error: "Impossible d'écrire le fichier storage.json" });
   }
-}
+});
 
-/**
- * Aide à la mise à jour partielle (uniquement clients, ou poseurs, etc.)
- */
-export async function updatePartialConfig(updates: Partial<StorageConfig>): Promise<boolean> {
-  const current = await fetchStorageConfig();
-  if (!current) return false;
-  
-  const updated: StorageConfig = {
-    webhook_url: updates.webhook_url !== undefined ? updates.webhook_url : current.webhook_url,
-    clients: updates.clients !== undefined ? updates.clients : current.clients,
-    poseurs: updates.poseurs !== undefined ? updates.poseurs : current.poseurs
-  };
-  
-  return await saveStorageConfigToServer(updated);
-}
+// Support SPA : redirige toutes les routes non-API vers index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Serveur BuildScan AI opérationnel sur le port ${PORT}`);
+  console.log(`📂 Stockage : ${STORAGE_FILE}`);
+});

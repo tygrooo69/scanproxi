@@ -6,40 +6,14 @@ export interface StorageConfig {
   poseurs: Poseur[];
 }
 
-/**
- * Configuration par défaut pour AI Studio (mode standalone)
- */
 const DEFAULT_CONFIG: StorageConfig = {
   webhook_url: "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324",
   clients: [
-    {
-      id: "def-1",
-      nom: "OPH DE DRANCY",
-      codeClient: "411DRA038",
-      typeAffaire: "O3-0"
-    },
-    {
-      id: "def-2",
-      nom: "VILOGIA",
-      codeClient: "411VIL001",
-      typeAffaire: "O1-A"
-    },
-    {
-      id: "def-3",
-      nom: "CDC HABITAT",
-      codeClient: "411CDC002",
-      typeAffaire: "O2-B"
-    }
+    { id: "def-1", nom: "OPH DE DRANCY", codeClient: "411DRA038", typeAffaire: "O3-0" },
+    { id: "def-2", nom: "VILOGIA", codeClient: "411VIL001", typeAffaire: "O1-A" }
   ],
   poseurs: [
-    {
-      id: "p-1",
-      nom: "Equipe A - Standard",
-      entreprise: "SAMDB",
-      telephone: "0148365214",
-      specialite: "Menuiserie",
-      codeSalarie: "SAM-A1"
-    }
+    { id: "p-1", nom: "Equipe A - Standard", entreprise: "SAMDB", telephone: "0148365214", specialite: "Menuiserie", codeSalarie: "SAM-A1" }
   ]
 };
 
@@ -52,74 +26,74 @@ const STORAGE_KEYS = {
 };
 
 /**
- * Initialise le localStorage avec la config par défaut si vide
- */
-function initializeLocalStorage(): void {
-  if (!localStorage.getItem(STORAGE_KEYS.WEBHOOK)) {
-    localStorage.setItem(STORAGE_KEYS.WEBHOOK, DEFAULT_CONFIG.webhook_url);
-    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(DEFAULT_CONFIG.clients));
-    localStorage.setItem(STORAGE_KEYS.POSEURS, JSON.stringify(DEFAULT_CONFIG.poseurs));
-    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
-    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'default');
-    console.log('✅ Configuration par défaut initialisée dans localStorage');
-  }
-}
-
-/**
- * Charge la configuration depuis localStorage (AI Studio mode)
+ * Charge la configuration depuis le serveur avec fallback local
  */
 export async function fetchStorageConfig(): Promise<StorageConfig | null> {
   try {
-    // Initialiser si nécessaire
-    initializeLocalStorage();
+    const response = await fetch('/api/config');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
-    const webhook = localStorage.getItem(STORAGE_KEYS.WEBHOOK);
-    const clientsStr = localStorage.getItem(STORAGE_KEYS.CLIENTS);
-    const poseursStr = localStorage.getItem(STORAGE_KEYS.POSEURS);
+    const config: StorageConfig = await response.json();
     
-    if (!webhook || !clientsStr || !poseursStr) {
-      console.warn('⚠️ Données manquantes, réinitialisation...');
-      initializeLocalStorage();
-      return DEFAULT_CONFIG;
+    // Sync LocalStorage
+    localStorage.setItem(STORAGE_KEYS.WEBHOOK, config.webhook_url);
+    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(config.clients));
+    localStorage.setItem(STORAGE_KEYS.POSEURS, JSON.stringify(config.poseurs));
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'server');
+    
+    return config;
+  } catch (err) {
+    console.warn("⚠️ Serveur non joignable, lecture du cache local...");
+    
+    const localWebhook = localStorage.getItem(STORAGE_KEYS.WEBHOOK);
+    const localClients = localStorage.getItem(STORAGE_KEYS.CLIENTS);
+    const localPoseurs = localStorage.getItem(STORAGE_KEYS.POSEURS);
+    
+    if (localWebhook && localClients && localPoseurs) {
+      localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'localStorage');
+      return {
+        webhook_url: localWebhook,
+        clients: JSON.parse(localClients),
+        poseurs: JSON.parse(localPoseurs)
+      };
     }
     
-    const config: StorageConfig = {
-      webhook_url: webhook,
-      clients: JSON.parse(clientsStr),
-      poseurs: JSON.parse(poseursStr)
-    };
-    
-    console.log('✅ Configuration chargée depuis localStorage (AI Studio mode)');
-    return config;
-    
-  } catch (err) {
-    console.error('❌ Erreur de lecture localStorage:', err);
     return DEFAULT_CONFIG;
   }
 }
 
 /**
- * Sauvegarde la configuration dans localStorage (AI Studio mode)
+ * Sauvegarde sur le serveur et en local
  */
 export async function saveStorageConfigToServer(config: StorageConfig): Promise<boolean> {
   try {
+    // Mettre à jour le local d'abord pour réactivité
     localStorage.setItem(STORAGE_KEYS.WEBHOOK, config.webhook_url);
     localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(config.clients));
     localStorage.setItem(STORAGE_KEYS.POSEURS, JSON.stringify(config.poseurs));
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
-    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'localStorage');
+
+    const response = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
     
-    console.log('✅ Configuration sauvegardée dans localStorage');
-    return true;
-    
-  } catch (err) {
-    console.error('❌ Erreur sauvegarde localStorage:', err);
+    if (response.ok) {
+      localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'server');
+      return true;
+    }
     return false;
+  } catch (err) {
+    console.error("❌ Erreur sauvegarde serveur:", err);
+    localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'localStorage');
+    return true; // Succès partiel (local uniquement)
   }
 }
 
 /**
- * Mise à jour partielle de la configuration
+ * Mise à jour partielle
  */
 export async function updatePartialConfig(updates: Partial<StorageConfig>): Promise<boolean> {
   const current = await fetchStorageConfig();

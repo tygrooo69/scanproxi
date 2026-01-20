@@ -1,5 +1,4 @@
-# CONTENU DU DOCKERFILE POUR BUILDSCAN AI
-# Ce fichier doit être nommé "Dockerfile" (sans extension)
+# DOCKERFILE POUR BUILDSCAN AI (SANS CONFIG.JSON)
 
 FROM node:20-alpine AS build
 WORKDIR /app
