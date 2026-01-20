@@ -1,77 +1,64 @@
+
 import { Client, Poseur } from '../types';
 
-interface StorageConfig {
+export interface StorageConfig {
   webhook_url: string;
   clients: Client[];
   poseurs: Poseur[];
 }
 
 /**
- * Tente de charger un fichier JSON de manière sécurisée
+ * Charge la configuration depuis le serveur
  */
-async function safeFetchJson(filename: string): Promise<any | null> {
+export async function fetchStorageConfig(): Promise<StorageConfig | null> {
   try {
-    const response = await fetch(`${filename}?t=${Date.now()}`);
-    if (!response.ok) return null;
-
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      return null;
-    }
-
+    const response = await fetch('/api/config');
+    if (!response.ok) throw new Error("Erreur serveur lors du chargement");
     return await response.json();
   } catch (err) {
-    console.error(`❌ Erreur lors de la lecture de ${filename}:`, err);
+    console.error("❌ BuildScan AI : Erreur config serveur:", err);
     return null;
   }
 }
 
 /**
- * Charge la config depuis le serveur (storage.json ou config.json)
+ * Sauvegarde la configuration complète sur le serveur
  */
-export async function fetchStorageConfig(): Promise<StorageConfig | null> {
-  const storageData = await safeFetchJson('storage.json');
-  if (storageData) return storageData;
-
-  const configData = await safeFetchJson('config.json');
-  if (configData) {
-    return {
-      webhook_url: configData.webhook_url,
-      clients: configData.clients || configData.default_clients || [],
-      poseurs: configData.poseurs || configData.default_poseurs || []
-    };
+export async function saveStorageConfigToServer(config: StorageConfig): Promise<boolean> {
+  try {
+    const response = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    
+    if (!response.ok) throw new Error("Erreur serveur lors de la sauvegarde");
+    
+    // On met aussi à jour le local storage pour une réactivité immédiate de l'UI si nécessaire
+    localStorage.setItem('buildscan_webhook_url', config.webhook_url);
+    localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
+    localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
+    localStorage.setItem('buildscan_last_sync', new Date().toISOString());
+    
+    return true;
+  } catch (err) {
+    console.error("❌ BuildScan AI : Échec sauvegarde serveur:", err);
+    return false;
   }
-  return null;
 }
 
 /**
- * Synchronise le localStorage avec un objet de configuration
+ * Aide à la mise à jour partielle (uniquement clients, ou poseurs, etc.)
  */
-export function syncLocalStorageWithFile(config: StorageConfig) {
-  if (!config) return;
-  localStorage.setItem('buildscan_webhook_url', config.webhook_url);
-  localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
-  localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
-  localStorage.setItem('buildscan_initialized', 'true');
-  localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-  localStorage.setItem('buildscan_data_source', 'server');
-}
-
-/**
- * Génère et télécharge le fichier storage.json actuel
- */
-export function exportCurrentConfigAsJson() {
-  const config: StorageConfig = {
-    webhook_url: localStorage.getItem('buildscan_webhook_url') || '',
-    clients: JSON.parse(localStorage.getItem('buildscan_clients') || '[]'),
-    poseurs: JSON.parse(localStorage.getItem('buildscan_poseurs') || '[]')
+export async function updatePartialConfig(updates: Partial<StorageConfig>): Promise<boolean> {
+  const current = await fetchStorageConfig();
+  if (!current) return false;
+  
+  const updated: StorageConfig = {
+    webhook_url: updates.webhook_url !== undefined ? updates.webhook_url : current.webhook_url,
+    clients: updates.clients !== undefined ? updates.clients : current.clients,
+    poseurs: updates.poseurs !== undefined ? updates.poseurs : current.poseurs
   };
-
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
-  const downloadAnchorNode = document.createElement('a');
-  downloadAnchorNode.setAttribute("href", dataStr);
-  downloadAnchorNode.setAttribute("download", "storage.json");
-  document.body.appendChild(downloadAnchorNode);
-  downloadAnchorNode.click();
-  downloadAnchorNode.remove();
+  
+  return await saveStorageConfigToServer(updated);
 }

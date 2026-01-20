@@ -7,16 +7,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "start": "serve -s dist -l 3000",
+    "start": "node server.js",
     "preview": "vite preview"
   },
   "dependencies": {
     "@google/genai": "^1.37.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "serve": "^14.2.4"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
