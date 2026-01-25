@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import AdminClients from './AdminClients';
 import AdminPoseurs from './AdminPoseurs';
-import AdminWebhook from './AdminWebhook';
+import AdminSettings from './AdminSettings';
 
-type AdminTab = 'clients' | 'poseurs' | 'config';
+type AdminTab = 'clients' | 'poseurs' | 'settings';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('clients');
@@ -11,7 +11,7 @@ const AdminDashboard: React.FC = () => {
   const menuItems = [
     { id: 'clients', label: 'Référentiel Clients', icon: 'fa-building', desc: 'Codes ERP & Mappings' },
     { id: 'poseurs', label: 'Gestion Flotte', icon: 'fa-users-cog', desc: 'Poseurs & Sous-traitants' },
-    { id: 'config', label: 'Configuration', icon: 'fa-cogs', desc: 'Webhook & Système' },
+    { id: 'settings', label: 'Paramètres', icon: 'fa-sliders-h', desc: 'Base de données & Webhook' },
   ];
 
   return (
@@ -63,7 +63,7 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-transparent">
           {activeTab === 'clients' && <AdminClients />}
           {activeTab === 'poseurs' && <AdminPoseurs />}
-          {activeTab === 'config' && <AdminWebhook />}
+          {activeTab === 'settings' && <AdminSettings />}
         </div>
       </div>
     </div>
