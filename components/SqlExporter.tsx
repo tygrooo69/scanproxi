@@ -88,18 +88,30 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       formData.append('file', originalFile, 'document.pdf');
     }
     
+    // --- Données ERP / Calculées ---
     formData.append('codeClient', codeCliFour);
     formData.append('code_trv', codeTrv);
     formData.append('num_chantier', chantier);
-    formData.append('libelle', data.nom_client || '');
     formData.append('imputation', imputation);
-    formData.append('descriptif_travaux', data.descriptif_travaux || '');
     formData.append('source', "BuildScan AI");
     formData.append('timestamp', new Date().toISOString());
+
+    // --- Données Brutes Extraites (Intégralité) ---
+    formData.append('num_bon_travaux', data.num_bon_travaux || '');
+    formData.append('nom_client', data.nom_client || '');
+    formData.append('adresse_intervention', data.adresse_intervention || '');
+    formData.append('coord_gardien', data.coord_gardien || '');
+    formData.append('delai_intervention', data.delai_intervention || '');
+    formData.append('date_intervention', data.date_intervention || '');
+    formData.append('descriptif_travaux', data.descriptif_travaux || '');
+    
+    // Alias pour compatibilité existante
+    formData.append('libelle', data.nom_client || '');
 
     addLog('request', `Envoi Multipart/FormData vers n8n... (Fichier inclus : ${originalFile ? 'OUI' : 'NON'})`, {
       codeClient: codeCliFour,
       imputation: imputation,
+      adresse: data.adresse_intervention,
       fileSize: originalFile ? `${(originalFile.size / 1024).toFixed(2)} KB` : 'N/A'
     });
 
