@@ -6,38 +6,28 @@ import Header from './components/Header';
 import FileUploader from './components/FileUploader';
 import ResultCard from './components/ResultCard';
 import SqlExporter from './components/SqlExporter';
-import AdminPoseurs from './components/AdminPoseurs';
-import AdminClients from './components/AdminClients';
-import AdminWebhook from './components/AdminWebhook';
+import AdminDashboard from './components/AdminDashboard';
+import AdminAuth from './components/AdminAuth';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('analyzer');
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [error, setError] = useState<string | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-
+  
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  
   useEffect(() => {
     const initApp = async () => {
-      console.log('🚀 Initialisation BuildScan AI (AI Studio mode)...');
-      
-      try {
-        const config = await fetchStorageConfig();
-        if (config) {
-          console.log('✅ Configuration chargée:', {
-            clients: config.clients.length,
-            poseurs: config.poseurs.length,
-            webhook: config.webhook_url.substring(0, 30) + '...'
-          });
-        }
-        setIsInitialized(true);
-      } catch (err) {
-        console.error('❌ Erreur initialisation:', err);
-        setIsInitialized(true); // Continuer quand même
-      }
+      console.log('🚀 Initialisation BuildScan AI...');
+      await fetchStorageConfig(); // Pré-chargement du cache
+      setIsInitialized(true);
     };
-    
     initApp();
   }, []);
 
@@ -46,6 +36,34 @@ const App: React.FC = () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     };
   }, [filePreviewUrl]);
+
+  const handleViewChange = (view: AppView) => {
+    if (view === 'analyzer') {
+      setCurrentView('analyzer');
+      return;
+    }
+    
+    // Protection de la vue Admin
+    if (view === 'admin') {
+      if (isAuthenticated) {
+        setCurrentView('admin');
+      } else {
+        setShowAuthModal(true);
+      }
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+    setShowAuthModal(false);
+    setCurrentView('admin');
+  };
+
+  const handleAuthCancel = () => {
+    setShowAuthModal(false);
+    // On reste sur la vue actuelle ou on revient à l'analyseur si on était bloqué
+    if (currentView !== 'analyzer') setCurrentView('analyzer');
+  };
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf') {
@@ -57,6 +75,7 @@ const App: React.FC = () => {
     setStatus(AppStatus.ANALYZING);
     setError(null);
     setExtractedData(null);
+    setOriginalFile(file);
 
     try {
       const url = URL.createObjectURL(file);
@@ -77,11 +96,9 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error("Analyse échouée:", err);
       let msg = err.message || "Une erreur inconnue est survenue.";
-      
       if (msg.includes("429") || msg.toLowerCase().includes("quota")) {
-        msg = "Quota dépassé (Erreur 429). Le modèle Gemini 3 Flash limite les requêtes gratuites. Veuillez attendre 60 secondes.";
+        msg = "Quota dépassé (Erreur 429). Veuillez patienter 60 secondes.";
       }
-      
       setError(msg);
       setStatus(AppStatus.ERROR);
     }
@@ -91,17 +108,17 @@ const App: React.FC = () => {
     setStatus(AppStatus.IDLE);
     setExtractedData(null);
     setError(null);
+    setOriginalFile(null);
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
   };
 
-  // Afficher un loader pendant l'initialisation
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-slate-600 font-bold">Initialisation de BuildScan AI...</p>
+          <p className="text-slate-600 font-bold">Connexion à la Base de Données...</p>
         </div>
       </div>
     );
@@ -109,12 +126,15 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <Header currentView={currentView} onViewChange={setCurrentView} />
+      <Header currentView={currentView} onViewChange={handleViewChange} />
+      
+      {showAuthModal && (
+        <AdminAuth onAuthenticated={handleAuthSuccess} onCancel={handleAuthCancel} />
+      )}
+
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {currentView === 'admin_poseurs' && <AdminPoseurs />}
-          {currentView === 'admin_clients' && <AdminClients />}
-          {currentView === 'admin_webhook' && <AdminWebhook />}
+        <div className="max-w-7xl mx-auto">
+          {currentView === 'admin' && <AdminDashboard />}
           
           {currentView === 'analyzer' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -150,12 +170,8 @@ const App: React.FC = () => {
 
                 {status === AppStatus.ANALYZING && (
                   <div className="bg-white border-2 border-blue-50 rounded-2xl p-16 text-center shadow-sm">
-                    <div className="relative inline-block mb-6">
-                      <div className="absolute inset-0 bg-blue-400 rounded-full blur-xl opacity-20 animate-pulse"></div>
-                      <div className="relative animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent shadow-lg"></div>
-                    </div>
+                    <div className="relative animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4 shadow-lg"></div>
                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Extraction en cours...</h3>
-                    <p className="text-slate-400 text-sm mt-2">Le moteur Gemini 3 Flash traite votre document...</p>
                   </div>
                 )}
 
@@ -169,7 +185,7 @@ const App: React.FC = () => {
                         <h3 className="text-lg font-black text-red-800 uppercase tracking-tight">Échec de l'IA</h3>
                         <p className="text-red-700 mt-1 font-medium italic">{error}</p>
                         <button onClick={reset} className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200">
-                          <i className="fas fa-redo mr-2"></i> Réessayer maintenant
+                          Réessayer
                         </button>
                       </div>
                     </div>
@@ -179,7 +195,7 @@ const App: React.FC = () => {
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
                     <ResultCard data={extractedData} onReset={reset} />
-                    <SqlExporter data={extractedData} />
+                    <SqlExporter data={extractedData} originalFile={originalFile || undefined} />
                   </div>
                 )}
               </div>
@@ -188,10 +204,8 @@ const App: React.FC = () => {
         </div>
       </main>
       <footer className="bg-white border-t border-slate-200 py-6">
-        <div className="container mx-auto px-4 text-center flex items-center justify-center gap-4">
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.5</span>
-          <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-          <span className="text-[10px] font-black uppercase text-blue-600 tracking-tighter bg-blue-50 px-2 py-0.5 rounded italic">AI Studio Mode</span>
+        <div className="container mx-auto px-4 text-center">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.5 • PocketBase Ed.</span>
         </div>
       </footer>
     </div>

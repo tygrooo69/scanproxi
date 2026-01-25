@@ -1,4 +1,3 @@
-
 export interface ConstructionOrderData {
   num_bon_travaux: string | null;
   adresse_intervention: string | null;
@@ -6,6 +5,7 @@ export interface ConstructionOrderData {
   nom_client: string | null;
   delai_intervention: string | null;
   date_intervention: string | null;
+  descriptif_travaux: string | null;
 }
 
 export interface Poseur {
@@ -45,4 +45,4 @@ export enum AppStatus {
   ERROR = 'ERROR'
 }
 
-export type AppView = 'analyzer' | 'admin_poseurs' | 'admin_clients' | 'admin_webhook';
+export type AppView = 'analyzer' | 'admin';

@@ -10,6 +10,7 @@ Instructions d'extraction :
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
 - delai_intervention : Période ou durée de validité mentionnée.
 - date_intervention : Date spécifique de rendez-vous si mentionnée.
+- descriptif_travaux : Résumé détaillé de la nature des travaux à effectuer (ex: "Remplacement de vitrage", "Réparation de serrure", "Recherche de fuite").
 
 Règles critiques :
 1. CONFIDENTIALITÉ : Ne jamais extraire de prix, de montants HT, TTC ou de taux de TVA. Ignore totalement ces zones.
@@ -26,15 +27,16 @@ const RESPONSE_SCHEMA = {
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
     delai_intervention: { type: Type.STRING, description: "Délai de validité" },
     date_intervention: { type: Type.STRING, description: "Date prévue" },
+    descriptif_travaux: { type: Type.STRING, description: "Détails des travaux à réaliser" },
   },
-  required: ["num_bon_travaux", "adresse_intervention", "coord_gardien", "nom_client", "delai_intervention", "date_intervention"]
+  required: ["num_bon_travaux", "adresse_intervention", "coord_gardien", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
 };
 
 export async function analyzeConstructionDocument(base64Data: string, mimeType: string): Promise<ConstructionOrderData> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: 'gemini-3-flash-preview',
     contents: {
       parts: [
         {

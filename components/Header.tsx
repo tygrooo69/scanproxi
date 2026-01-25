@@ -38,31 +38,19 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
           <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-lg">
             <button 
               onClick={() => onViewChange('analyzer')}
-              className={`text-[11px] px-3 py-1.5 rounded font-bold transition-all ${currentView === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-400 hover:text-white'}`}
+              className={`text-[11px] px-4 py-2 rounded font-bold transition-all flex items-center gap-2 ${currentView === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-400 hover:text-white'}`}
             >
-              <i className="fas fa-search mr-1"></i> Analyseur
+              <i className="fas fa-search"></i> Analyseur
             </button>
             <button 
-              onClick={() => onViewChange('admin_poseurs')}
-              className={`text-[11px] px-3 py-1.5 rounded font-bold transition-all ${currentView === 'admin_poseurs' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => onViewChange('admin')}
+              className={`text-[11px] px-4 py-2 rounded font-bold transition-all flex items-center gap-2 ${currentView === 'admin' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
             >
-              Poseurs
-            </button>
-            <button 
-              onClick={() => onViewChange('admin_clients')}
-              className={`text-[11px] px-3 py-1.5 rounded font-bold transition-all ${currentView === 'admin_clients' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-400 hover:text-white'}`}
-            >
-              Clients
-            </button>
-            <button 
-              onClick={() => onViewChange('admin_webhook')}
-              className={`text-[11px] px-3 py-1.5 rounded font-bold transition-all ${currentView === 'admin_webhook' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-400 hover:text-white'}`}
-            >
-              Configuration
+              <i className="fas fa-lock"></i> Administration
             </button>
           </div>
           
-          <div className="text-[9px] text-slate-500 font-mono text-right leading-none">
+          <div className="text-[9px] text-slate-500 font-mono text-right leading-none border-l border-slate-700 pl-4">
             <span className="block mb-1 text-slate-400">DATA_REVISION</span>
             <span>{lastSync ? new Date(lastSync).toLocaleTimeString() : 'N/A'}</span>
           </div>

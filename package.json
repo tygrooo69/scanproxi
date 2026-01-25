@@ -1,8 +1,7 @@
-
 {
   "name": "buildscan-ai",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +13,7 @@
     "@google/genai": "^1.37.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "pocketbase": "^0.21.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { ConstructionOrderData, Client } from '../types';
 
@@ -88,6 +87,17 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
           </p>
         </div>
       )}
+
+      {/* Affichage du Descriptif des Travaux en évidence */}
+      <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+        <div className="flex items-center gap-2 mb-2">
+          <i className="fas fa-tools text-blue-500 text-xs"></i>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descriptif des Travaux</span>
+        </div>
+        <p className="text-sm font-semibold text-slate-800 leading-relaxed">
+          {data.descriptif_travaux || "Aucun descriptif trouvé dans le document."}
+        </p>
+      </div>
       
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         {fields.map((field, idx) => (
