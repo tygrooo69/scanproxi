@@ -5,31 +5,35 @@ const SYSTEM_INSTRUCTION = `Tu es un agent spécialisé dans l'analyse de docume
 
 Instructions d'extraction :
 - num_bon_travaux : Extraire le numéro de référence du bon.
-- adresse_intervention : Adresse complète du chantier.
-- coord_gardien : Nom/Téléphone du contact sur place (gardien ou locataire).
+- adresse_1 : Ligne 1 de l'adresse (Voie, Numéro). Maximum 40 caractères.
+- adresse_2 : Ligne 2 de l'adresse (Complément, Bâtiment, Résidence). Maximum 40 caractères.
+- adresse_3 : Ligne 3 de l'adresse (Code Postal, Ville). Maximum 40 caractères.
+- coord_gardien : Extrait UNIQUEMENT le Nom, Prénom et Numéro de téléphone. Supprime tout texte superflu comme "Gardien:", "M.", "Mme", "Loge", etc.
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
-- delai_intervention : Période ou durée de validité mentionnée.
-- date_intervention : Date spécifique de rendez-vous si mentionnée.
+- delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la dernière date (la plus lointaine dans le temps).
+- date_intervention : Date d'émission ou de création du document/bon (et non la date du rendez-vous).
 - descriptif_travaux : Résumé détaillé de la nature des travaux à effectuer (ex: "Remplacement de vitrage", "Réparation de serrure", "Recherche de fuite").
 
 Règles critiques :
-1. CONFIDENTIALITÉ : Ne jamais extraire de prix, de montants HT, TTC ou de taux de TVA. Ignore totalement ces zones.
-2. FORMAT : Réponds exclusivement au format JSON pur.
-3. NULLITÉ : Si un champ n'est pas trouvé, inscris null.
-4. LANGUE : Conserve le texte original pour les adresses et noms.`;
+1. ADRESSE : Si l'adresse est longue, découpe-la intelligemment sur les 3 champs (adresse_1, adresse_2, adresse_3) pour ne pas dépasser 40 caractères par champ.
+2. CONFIDENTIALITÉ : Ne jamais extraire de prix, de montants HT, TTC ou de taux de TVA. Ignore totalement ces zones.
+3. FORMAT : Réponds exclusivement au format JSON pur.
+4. NULLITÉ : Si un champ n'est pas trouvé, inscris null.`;
 
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     num_bon_travaux: { type: Type.STRING, description: "Référence du bon" },
-    adresse_intervention: { type: Type.STRING, description: "Adresse du chantier" },
-    coord_gardien: { type: Type.STRING, description: "Contact gardien/client" },
+    adresse_1: { type: Type.STRING, description: "Adresse Ligne 1 (Voie) - Max 40 chars" },
+    adresse_2: { type: Type.STRING, description: "Adresse Ligne 2 (Complément) - Max 40 chars" },
+    adresse_3: { type: Type.STRING, description: "Adresse Ligne 3 (CP Ville) - Max 40 chars" },
+    coord_gardien: { type: Type.STRING, description: "Nom Prénom Tel uniquement" },
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
-    delai_intervention: { type: Type.STRING, description: "Délai de validité" },
-    date_intervention: { type: Type.STRING, description: "Date prévue" },
+    delai_intervention: { type: Type.STRING, description: "Délai de validité (Dernière date)" },
+    date_intervention: { type: Type.STRING, description: "Date du document" },
     descriptif_travaux: { type: Type.STRING, description: "Détails des travaux à réaliser" },
   },
-  required: ["num_bon_travaux", "adresse_intervention", "coord_gardien", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
+  required: ["num_bon_travaux", "adresse_1", "adresse_3", "coord_gardien", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
 };
 
 export async function analyzeConstructionDocument(base64Data: string, mimeType: string): Promise<ConstructionOrderData> {
@@ -62,7 +66,6 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     throw new Error("Le modèle n'a renvoyé aucune réponse.");
   }
 
-  // Nettoyage de sécurité pour garantir un parsing JSON valide
   const startIdx = text.indexOf('{');
   const endIdx = text.lastIndexOf('}');
   
@@ -73,7 +76,20 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
   const cleanJson = text.substring(startIdx, endIdx + 1);
 
   try {
-    return JSON.parse(cleanJson) as ConstructionOrderData;
+    const data = JSON.parse(cleanJson) as ConstructionOrderData;
+    
+    // Post-traitement : Nettoyage du numéro de bon (suppression espaces et caractères spéciaux)
+    // On ne garde que les lettres et les chiffres
+    if (data.num_bon_travaux) {
+      data.num_bon_travaux = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
+    }
+
+    // Sécurité supplémentaire pour tronquer les adresses si l'IA a halluciné > 40 chars
+    if (data.adresse_1) data.adresse_1 = data.adresse_1.substring(0, 40);
+    if (data.adresse_2) data.adresse_2 = data.adresse_2.substring(0, 40);
+    if (data.adresse_3) data.adresse_3 = data.adresse_3.substring(0, 40);
+
+    return data;
   } catch (err) {
     console.error("Erreur de parsing JSON. Texte reçu:", text);
     throw new Error("Échec du décodage des données extraites.");

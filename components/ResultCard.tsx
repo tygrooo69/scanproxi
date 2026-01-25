@@ -31,10 +31,9 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
   const fields = [
     { label: "Numéro de Bon", value: data.num_bon_travaux, icon: "fa-hashtag", color: "text-blue-600" },
     { label: "Nom Client (PDF)", value: data.nom_client, icon: "fa-building", color: "text-indigo-600" },
-    { label: "Adresse d'intervention", value: data.adresse_intervention, icon: "fa-map-marker-alt", color: "text-red-600" },
     { label: "Contact / Gardien", value: data.coord_gardien, icon: "fa-user-tie", color: "text-emerald-600" },
+    { label: "Date du Document", value: data.date_intervention, icon: "fa-file-signature", color: "text-purple-600" },
     { label: "Délai d'intervention", value: data.delai_intervention, icon: "fa-calendar-alt", color: "text-orange-600" },
-    { label: "Date fixée", value: data.date_intervention, icon: "fa-clock", color: "text-purple-600" },
   ];
 
   return (
@@ -88,7 +87,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
         </div>
       )}
 
-      {/* Affichage du Descriptif des Travaux en évidence */}
+      {/* Affichage du Descriptif des Travaux */}
       <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-tools text-blue-500 text-xs"></i>
@@ -100,6 +99,29 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
       </div>
       
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Champs d'adresse spécifiques */}
+        <div className="space-y-1 md:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <i className="fas fa-map-marker-alt text-red-600 w-4"></i>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Adresse d'intervention (3 Lignes)</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
+               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 1</span>
+               <span className="font-medium text-slate-900 truncate" title={data.adresse_1 || ''}>{data.adresse_1 || '-'}</span>
+            </div>
+            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
+               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 2</span>
+               <span className="font-medium text-slate-900 truncate" title={data.adresse_2 || ''}>{data.adresse_2 || '-'}</span>
+            </div>
+            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
+               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 3</span>
+               <span className="font-medium text-slate-900 truncate" title={data.adresse_3 || ''}>{data.adresse_3 || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Autres champs */}
         {fields.map((field, idx) => (
           <div key={idx} className="space-y-1">
             <div className="flex items-center gap-2 mb-1">

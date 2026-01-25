@@ -1,6 +1,8 @@
 export interface ConstructionOrderData {
   num_bon_travaux: string | null;
-  adresse_intervention: string | null;
+  adresse_1: string | null;
+  adresse_2: string | null;
+  adresse_3: string | null;
   coord_gardien: string | null;
   nom_client: string | null;
   delai_intervention: string | null;
