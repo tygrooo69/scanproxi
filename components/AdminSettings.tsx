@@ -62,8 +62,8 @@ const AdminSettings: React.FC = () => {
       const pb = new PocketBase(dbConfig.url);
       pb.autoCancellation(false);
 
-      // 2. Authentification Admin
-      const authData = await pb.admins.authWithPassword(dbConfig.email, dbConfig.password);
+      // 2. Authentification Admin (Mise à jour pour PB v0.23+ : _superusers)
+      const authData = await pb.collection('_superusers').authWithPassword(dbConfig.email, dbConfig.password);
       
       // 3. Test de lecture (Lister les collections pour vérifier les droits et la connectivité)
       const collections = await pb.collections.getFullList();

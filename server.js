@@ -58,7 +58,8 @@ async function initPocketBase() {
     pb.autoCancellation(false); // Évite l'annulation des requêtes concurrentes
 
     if (config.email && config.password) {
-      await pb.admins.authWithPassword(config.email, config.password);
+      // Support PocketBase v0.23+ : Utilisation de la collection système _superusers
+      await pb.collection('_superusers').authWithPassword(config.email, config.password);
       console.log(`✅ Connecté à PocketBase Admin (${config.url})`);
       return true;
     } else {
