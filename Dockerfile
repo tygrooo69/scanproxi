@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Installation des dépendances
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copie des sources
 COPY . .
@@ -24,7 +24,7 @@ WORKDIR /app
 
 # Installation des dépendances de production uniquement
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copie du serveur et du build frontend depuis l'étape précédente
 COPY server.js ./
