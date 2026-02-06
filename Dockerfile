@@ -13,9 +13,6 @@ COPY . .
 # Injection de la clé API au moment du build (Requis par Vite)
 ARG API_KEY
 ENV API_KEY=${API_KEY}
-ENV POCKETBASE_URL=${POCKETBASE_URL}
-ENV POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
-ENV POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
 
 # Construction du frontend (génère le dossier /dist)
 RUN npm run build
@@ -41,5 +38,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Démarrage du serveur Node
-
 CMD ["node", "server.js"]

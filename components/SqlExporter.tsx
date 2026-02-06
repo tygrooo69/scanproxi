@@ -13,6 +13,13 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
+  // State for editable case number
+  const escapeSql = (str: string | null) => str ? str.replace(/'/g, "''").trim() : "";
+  const [chantierInput, setChantierInput] = useState<string>(() => 
+    escapeSql(data.num_bon_travaux).replace(/\D/g, '').substring(0, 6) || "000000"
+  );
+  const [fetchingChantier, setFetchingChantier] = useState(false);
+
   const DEFAULT_WEBHOOK_URL = "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
 
   const addLog = (type: LogEntry['type'], message: string, data?: any) => {
@@ -51,9 +58,6 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
     }
   }, [data.nom_client]);
 
-  const escapeSql = (str: string | null) => str ? str.replace(/'/g, "''").trim() : "";
-  
-  // Reconstitution de l'adresse complète pour l'historique ou le SQL legacy
   const fullAddress = [data.adresse_1, data.adresse_2, data.adresse_3]
     .filter(Boolean)
     .join(' ');
@@ -63,10 +67,11 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const ets = "001";
   const secteur = "80";
   const phase = "0";
-  const chantier = escapeSql(data.num_bon_travaux).replace(/\D/g, '').substring(0, 6) || "000000";
+  
+  // Use state variable for chantier
+  const chantier = chantierInput;
   const imputation = `${secteur}${chantier}${phase}`;
   
-  // Extraction CP depuis l'adresse 3 en priorité, sinon scanne tout
   const cpSource = data.adresse_3 || fullAddress;
   const cpMatch = cpSource.match(/\d{5}/);
   const codePostal = cpMatch ? cpMatch[0] : "";
@@ -85,36 +90,87 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const fetchNextChantier = async () => {
+    const url = localStorage.getItem('buildscan_client_webhook_url');
+    if (!url) {
+      addLog('error', 'Erreur : Aucun Webhook "Numéro d\'affaire" configuré dans l\'admin.');
+      return;
+    }
+    
+    if (!mappedClient) {
+      addLog('error', 'Erreur : Client non identifié, impossible de demander un numéro.');
+      return;
+    }
+
+    setFetchingChantier(true);
+    addLog('request', `Demande de nouveau numéro d'affaire au webhook...`, { typeAffaire: mappedClient.typeAffaire, codeClient: mappedClient.codeClient });
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          typeAffaire: mappedClient.typeAffaire,
+          codeClient: mappedClient.codeClient,
+          nomClient: mappedClient.nom
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const result = await response.json();
+      addLog('response', `Réponse Webhook reçue`, result);
+      
+      // Adaptation selon format de réponse (flexible)
+      let newNumber = "";
+      if (result.numero_affaire) newNumber = result.numero_affaire;
+      else if (result.next_id) newNumber = result.next_id;
+      else if (result.value) newNumber = result.value;
+      else if (typeof result === 'string') newNumber = result;
+      else if (typeof result === 'number') newNumber = String(result);
+      
+      if (newNumber) {
+        // Nettoyage pour ne garder que les 6 derniers chiffres si c'est un format long
+        const cleanNumber = String(newNumber).replace(/\D/g, '');
+        const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
+        
+        setChantierInput(formattedNumber);
+        addLog('info', `Numéro d'affaire mis à jour : ${formattedNumber}`);
+      } else {
+        throw new Error("Format de réponse inconnu (attendu: numero_affaire ou next_id)");
+      }
+
+    } catch (e: any) {
+      addLog('error', `Échec récupération numéro : ${e.message}`);
+    } finally {
+      setFetchingChantier(false);
+    }
+  };
+
   const transmitToWebhook = async () => {
     setTransmitting(true);
     setTransmitStatus('idle');
     const webhookUrl = localStorage.getItem('buildscan_webhook_url') || DEFAULT_WEBHOOK_URL;
     
-    // Création du FormData pour un envoi MULTIPART
-    // C'est ce qui permet à n8n de voir le PDF comme un fichier binaire réel
     const formData = new FormData();
     
     if (originalFile) {
       formData.append('file', originalFile, 'document.pdf');
     }
     
-    // --- Données ERP / Calculées ---
     formData.append('codeClient', codeCliFour);
     formData.append('code_trv', codeTrv);
-    formData.append('num_chantier', chantier);
-    formData.append('imputation', imputation);
+    formData.append('num_chantier', chantier); // Uses state value
+    formData.append('imputation', imputation); // Uses state value (via dependency)
     formData.append('source', "BuildScan AI");
     formData.append('timestamp', new Date().toISOString());
 
-    // --- Données Brutes Extraites (Intégralité) ---
     formData.append('num_bon_travaux', data.num_bon_travaux || '');
     formData.append('nom_client', data.nom_client || '');
     
-    // Nouveaux champs d'adresse distincts
     formData.append('adresse_1', data.adresse_1 || '');
     formData.append('adresse_2', data.adresse_2 || '');
     formData.append('adresse_3', data.adresse_3 || '');
-    // Rétrocompatibilité
     formData.append('adresse_intervention', fullAddress);
 
     formData.append('coord_gardien', data.coord_gardien || '');
@@ -122,21 +178,17 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     formData.append('date_intervention', data.date_intervention || '');
     formData.append('descriptif_travaux', data.descriptif_travaux || '');
     
-    // Alias pour compatibilité existante
     formData.append('libelle', data.nom_client || '');
 
-    addLog('request', `Envoi Multipart/FormData vers n8n... (Fichier inclus : ${originalFile ? 'OUI' : 'NON'})`, {
+    addLog('request', `Envoi Multipart/FormData vers n8n...`, {
       codeClient: codeCliFour,
       imputation: imputation,
-      adresse_1: data.adresse_1,
-      adresse_cp: data.adresse_3,
-      fileSize: originalFile ? `${(originalFile.size / 1024).toFixed(2)} KB` : 'N/A'
+      num_chantier: chantier
     });
 
     try {
       const response = await fetch(webhookUrl, {
         method: 'POST',
-        // Note: Ne PAS mettre de Content-Type header, le navigateur le fera automatiquement avec le boundary pour FormData
         body: formData
       });
 
@@ -194,7 +246,7 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
         </div>
         
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className={`p-3 rounded-lg border flex items-center justify-between transition-all ${mappedClient ? 'bg-emerald-900/20 border-emerald-800' : 'bg-amber-900/20 border-amber-800'}`}>
               <div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Code Client</p>
@@ -204,12 +256,40 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
               </div>
               {mappedClient ? <i className="fas fa-link text-emerald-500"></i> : <i className="fas fa-unlink text-amber-500"></i>}
             </div>
+            
             <div className="p-3 bg-blue-900/20 border border-blue-800 rounded-lg flex items-center justify-between">
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Affaire</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Type Affaire</p>
                 <p className="text-sm font-mono font-bold text-blue-400">{codeTrv}</p>
               </div>
               <i className="fas fa-folder-open text-blue-500"></i>
+            </div>
+
+            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg flex flex-col justify-center">
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5 flex items-center gap-2">
+                Numéro Affaire / Chantier
+                {chantierInput && <span className="text-[8px] bg-slate-700 px-1 rounded text-slate-300">{chantierInput.length} chars</span>}
+              </p>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={chantierInput}
+                  onChange={(e) => setChantierInput(e.target.value)}
+                  className="bg-slate-900 border border-slate-600 text-white text-sm font-mono font-bold rounded px-2 py-1 w-full focus:outline-none focus:border-blue-500"
+                />
+                <button 
+                  onClick={fetchNextChantier}
+                  disabled={fetchingChantier || !mappedClient}
+                  title="Générer le prochain numéro via Webhook"
+                  className={`px-3 py-1 rounded font-bold text-xs transition-colors flex items-center justify-center ${
+                    fetchingChantier ? 'bg-slate-700 text-slate-500' : 
+                    !mappedClient ? 'bg-slate-800 text-slate-600 cursor-not-allowed' :
+                    'bg-indigo-600 text-white hover:bg-indigo-500'
+                  }`}
+                >
+                  {fetchingChantier ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-magic"></i>}
+                </button>
+              </div>
             </div>
           </div>
 

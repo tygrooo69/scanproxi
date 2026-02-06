@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import PocketBase from 'pocketbase';
-import { fetchStorageConfig, updateWebhookUrl, getDbConfig, updateDbConfig, DbConfig } from '../services/configService';
+import { fetchStorageConfig, updateConfig, getDbConfig, updateDbConfig, DbConfig } from '../services/configService';
 
 const AdminSettings: React.FC = () => {
   // Webhook State
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [clientWebhookUrl, setClientWebhookUrl] = useState("");
   const [webhookSaving, setWebhookSaving] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -28,9 +29,12 @@ const AdminSettings: React.FC = () => {
   }, []);
 
   const loadConfigs = async () => {
-    // Charger Webhook (depuis DB)
+    // Charger Webhooks (depuis DB)
     const storeConfig = await fetchStorageConfig();
-    if (storeConfig) setWebhookUrl(storeConfig.webhook_url);
+    if (storeConfig) {
+      setWebhookUrl(storeConfig.webhook_url || "");
+      setClientWebhookUrl(storeConfig.client_webhook_url || "");
+    }
 
     // Charger DB Config (depuis Serveur Local)
     const dbConf = await getDbConfig();
@@ -41,10 +45,6 @@ const AdminSettings: React.FC = () => {
         password: '', // On ne récupère jamais le mot de passe réel pour l'afficher
         hasPassword: dbConf.hasPassword 
       });
-      // Si une config existe déjà, on tente un test silencieux pour mettre à jour le statut
-      if (dbConf.url) {
-        // Optionnel : on pourrait vérifier la connectivité ici au chargement
-      }
     }
   };
 
@@ -93,12 +93,16 @@ const AdminSettings: React.FC = () => {
     }
   };
 
-  const handleSaveWebhook = async (e: React.FormEvent) => {
+  const handleSaveWebhooks = async (e: React.FormEvent) => {
     e.preventDefault();
     setWebhookSaving(true);
     setWebhookStatus('idle');
     
-    const success = await updateWebhookUrl(webhookUrl);
+    const success = await updateConfig({ 
+      webhook_url: webhookUrl,
+      client_webhook_url: clientWebhookUrl
+    });
+    
     if (success) {
       setWebhookStatus('success');
       setTimeout(() => setWebhookStatus('idle'), 3000);
@@ -126,7 +130,10 @@ const AdminSettings: React.FC = () => {
       setDbConfig(prev => ({ ...prev, password: '', hasPassword: true })); // Reset champ password
       // Recharger le webhook car la DB a pu changer
       const storeConfig = await fetchStorageConfig();
-      if (storeConfig) setWebhookUrl(storeConfig.webhook_url);
+      if (storeConfig) {
+        setWebhookUrl(storeConfig.webhook_url || "");
+        setClientWebhookUrl(storeConfig.client_webhook_url || "");
+      }
     } else {
       setDbStatus('error');
       setDbMessage(result.message || 'Erreur de connexion');
@@ -271,14 +278,14 @@ const AdminSettings: React.FC = () => {
         </form>
       </div>
 
-      {/* SECTION WEBHOOK */}
+      {/* SECTION WEBHOOKS */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 relative overflow-hidden">
         {/* Overlay si DB non connectée */}
         {(!dbConfig.url || (testResult?.success === false && !dbConfig.hasPassword)) && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
             <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-lg text-slate-500 font-bold text-sm flex items-center gap-2">
               <i className="fas fa-lock text-slate-400"></i>
-              Connectez la Base de Données pour configurer le Webhook
+              Connectez la Base de Données pour configurer les Webhooks
             </div>
           </div>
         )}
@@ -288,24 +295,40 @@ const AdminSettings: React.FC = () => {
             <i className="fas fa-network-wired"></i>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Configuration Webhook</h2>
+            <h2 className="text-xl font-bold text-slate-800">Configuration des Flux</h2>
             <p className="text-slate-500 text-xs">Synchronisation n8n / ERP (stocké en base)</p>
           </div>
         </div>
 
-        <form onSubmit={handleSaveWebhook} className="space-y-6">
+        <form onSubmit={handleSaveWebhooks} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL Endpoint</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL Export (PDF + Data)</label>
             <div className="relative">
-                <i className="fas fa-bolt absolute left-3 top-3.5 text-slate-400"></i>
+                <i className="fas fa-upload absolute left-3 top-3.5 text-slate-400"></i>
                 <input 
                 type="url" 
                 required
                 className="w-full pl-10 p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm bg-slate-50"
                 value={webhookUrl}
                 onChange={e => setWebhookUrl(e.target.value)}
+                placeholder="https://n8n.example.com/webhook/export"
                 />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL Client / Numéro d'Affaire</label>
+            <div className="relative">
+                <i className="fas fa-search absolute left-3 top-3.5 text-slate-400"></i>
+                <input 
+                type="url" 
+                className="w-full pl-10 p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm bg-slate-50"
+                value={clientWebhookUrl}
+                onChange={e => setClientWebhookUrl(e.target.value)}
+                placeholder="https://n8n.example.com/webhook/get-case-number"
+                />
+            </div>
+            <p className="text-[10px] text-slate-500 italic">Ce webhook est appelé pour générer un nouveau numéro de chantier basé sur le Type Affaire.</p>
           </div>
 
           <div className="flex items-center justify-between">

@@ -2,6 +2,7 @@ import { Client, Poseur } from '../types';
 
 export interface StorageConfig {
   webhook_url: string;
+  client_webhook_url?: string;
   clients: Client[];
   poseurs: Poseur[];
 }
@@ -16,6 +17,7 @@ export interface DbConfig {
 // Fallback uniquement si le serveur est inaccessible et le cache vide
 const DEFAULT_CONFIG: StorageConfig = {
   webhook_url: "",
+  client_webhook_url: "",
   clients: [],
   poseurs: []
 };
@@ -34,6 +36,9 @@ export async function fetchStorageConfig(): Promise<StorageConfig | null> {
     
     // Mise à jour du cache local
     localStorage.setItem('buildscan_webhook_url', config.webhook_url);
+    if (config.client_webhook_url) {
+      localStorage.setItem('buildscan_client_webhook_url', config.client_webhook_url);
+    }
     localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
     localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
     localStorage.setItem('buildscan_data_source', 'server');
@@ -44,12 +49,14 @@ export async function fetchStorageConfig(): Promise<StorageConfig | null> {
     console.warn("API Inaccessible ou DB déconnectée, passage en mode cache/local :", err);
     
     const cachedWebhook = localStorage.getItem('buildscan_webhook_url');
+    const cachedClientWebhook = localStorage.getItem('buildscan_client_webhook_url');
     const cachedClients = localStorage.getItem('buildscan_clients');
     const cachedPoseurs = localStorage.getItem('buildscan_poseurs');
 
     if (cachedWebhook || cachedClients) {
       const offlineConfig: StorageConfig = {
         webhook_url: cachedWebhook || "",
+        client_webhook_url: cachedClientWebhook || "",
         clients: cachedClients ? JSON.parse(cachedClients) : [],
         poseurs: cachedPoseurs ? JSON.parse(cachedPoseurs) : []
       };
@@ -148,15 +155,23 @@ export async function deletePoseur(id: string): Promise<boolean> {
   } catch (e) { return false; }
 }
 
-// --- CONFIG WEBHOOK ---
-export async function updateWebhookUrl(url: string): Promise<boolean> {
+// --- CONFIG WEBHOOKS ---
+export async function updateConfig(config: Partial<StorageConfig>): Promise<boolean> {
   try {
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhook_url: url })
+      body: JSON.stringify(config)
     });
-    if (res.ok) localStorage.setItem('buildscan_webhook_url', url);
+    if (res.ok) {
+      if (config.webhook_url !== undefined) localStorage.setItem('buildscan_webhook_url', config.webhook_url);
+      if (config.client_webhook_url !== undefined) localStorage.setItem('buildscan_client_webhook_url', config.client_webhook_url);
+    }
     return res.ok;
   } catch (e) { return false; }
+}
+
+// Deprecated: kept for backward compatibility if needed, but redirects to updateConfig
+export async function updateWebhookUrl(url: string): Promise<boolean> {
+  return updateConfig({ webhook_url: url });
 }

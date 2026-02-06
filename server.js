@@ -129,20 +129,22 @@ app.get('/api/bootstrap', async (req, res) => {
   try {
     if (!pb) {
       // Mode dégradé si PB non configuré
-      return res.json({ webhook_url: "", clients: [], poseurs: [] });
+      return res.json({ webhook_url: "", client_webhook_url: "", clients: [], poseurs: [] });
     }
 
     // Récupération parallèle avec gestion d'erreurs silencieuse
     const [clientsReq, poseursReq, configReq] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
-      pb.collection('config').getFirstListItem('').catch(() => ({ webhook_url: "" }))
+      pb.collection('config').getFirstListItem('').catch(() => ({ webhook_url: "", client_webhook_url: "" }))
     ]);
 
     const finalWebhookUrl = configReq.webhook_url || ENV_WEBHOOK_URL || "http://default-webhook.com";
+    const finalClientWebhookUrl = configReq.client_webhook_url || "";
 
     res.json({
       webhook_url: finalWebhookUrl,
+      client_webhook_url: finalClientWebhookUrl,
       clients: clientsReq.map(c => ({ id: c.id, nom: c.nom, codeClient: c.codeClient, typeAffaire: c.typeAffaire })),
       poseurs: poseursReq.map(p => ({ id: p.id, nom: p.nom, entreprise: p.entreprise, telephone: p.telephone, specialite: p.specialite, codeSalarie: p.codeSalarie }))
     });
