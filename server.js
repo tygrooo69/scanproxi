@@ -133,17 +133,16 @@ app.get('/api/bootstrap', async (req, res) => {
     }
 
     // Récupération parallèle
+    // Note: Pour config, on récupère toute la liste pour trier par type ensuite
     const [clientsReq, poseursReq, configList] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
-      // On récupère toute la liste de config pour filtrer par type
       pb.collection('config').getFullList().catch(() => [])
     ]);
 
     // Mapping des configurations par type
     // type 0 = URL Export (webhook_url)
     // type 1 = URL Client (client_webhook_url)
-    // On suppose que la colonne contenant l'URL s'appelle 'url'
     const exportConfig = configList.find(c => c.type === 0);
     const clientConfig = configList.find(c => c.type === 1);
 
@@ -200,14 +199,17 @@ app.post('/api/config', requirePb, async (req, res) => {
     // Fonction utilitaire pour mettre à jour ou créer une config selon son type
     const upsertConfig = async (type, urlValue) => {
        if (urlValue === undefined) return null;
+       
        try {
          // Tente de trouver par type
          const record = await pb.collection('config').getFirstListItem(`type=${type}`);
          return await pb.collection('config').update(record.id, { url: urlValue });
        } catch (e) {
-         // Si non trouvé, on crée
-         // Note: Assurez-vous que la collection 'config' a les champs 'type' (number) et 'url' (text)
-         return await pb.collection('config').create({ type, url: urlValue });
+         // Si non trouvé (404), on crée
+         if (e.status === 404) {
+            return await pb.collection('config').create({ type, url: urlValue });
+         }
+         throw e;
        }
     };
 
