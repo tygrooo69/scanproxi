@@ -132,15 +132,23 @@ app.get('/api/bootstrap', async (req, res) => {
       return res.json({ webhook_url: "", client_webhook_url: "", clients: [], poseurs: [] });
     }
 
-    // Récupération parallèle avec gestion d'erreurs silencieuse
-    const [clientsReq, poseursReq, configReq] = await Promise.all([
+    // Récupération parallèle
+    const [clientsReq, poseursReq, configList] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
-      pb.collection('config').getFirstListItem('').catch(() => ({ webhook_url: "", client_webhook_url: "" }))
+      // On récupère toute la liste de config pour filtrer par type
+      pb.collection('config').getFullList().catch(() => [])
     ]);
 
-    const finalWebhookUrl = configReq.webhook_url || ENV_WEBHOOK_URL || "http://default-webhook.com";
-    const finalClientWebhookUrl = configReq.client_webhook_url || "";
+    // Mapping des configurations par type
+    // type 0 = URL Export (webhook_url)
+    // type 1 = URL Client (client_webhook_url)
+    // On suppose que la colonne contenant l'URL s'appelle 'url'
+    const exportConfig = configList.find(c => c.type === 0);
+    const clientConfig = configList.find(c => c.type === 1);
+
+    const finalWebhookUrl = exportConfig?.url || ENV_WEBHOOK_URL || "http://default-webhook.com";
+    const finalClientWebhookUrl = clientConfig?.url || "";
 
     res.json({
       webhook_url: finalWebhookUrl,
@@ -187,14 +195,31 @@ app.delete('/api/poseurs/:id', requirePb, async (req, res) => {
 
 app.post('/api/config', requirePb, async (req, res) => {
   try {
-    let record;
-    try {
-      const existing = await pb.collection('config').getFirstListItem('');
-      record = await pb.collection('config').update(existing.id, req.body);
-    } catch (e) {
-      record = await pb.collection('config').create(req.body);
+    const { webhook_url, client_webhook_url } = req.body;
+    
+    // Fonction utilitaire pour mettre à jour ou créer une config selon son type
+    const upsertConfig = async (type, urlValue) => {
+       if (urlValue === undefined) return null;
+       try {
+         // Tente de trouver par type
+         const record = await pb.collection('config').getFirstListItem(`type=${type}`);
+         return await pb.collection('config').update(record.id, { url: urlValue });
+       } catch (e) {
+         // Si non trouvé, on crée
+         // Note: Assurez-vous que la collection 'config' a les champs 'type' (number) et 'url' (text)
+         return await pb.collection('config').create({ type, url: urlValue });
+       }
+    };
+
+    const results = {};
+    if (webhook_url !== undefined) {
+      results.export = await upsertConfig(0, webhook_url);
     }
-    res.json(record);
+    if (client_webhook_url !== undefined) {
+      results.client = await upsertConfig(1, client_webhook_url);
+    }
+
+    res.json({ success: true, updates: results });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
