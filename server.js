@@ -133,21 +133,20 @@ app.get('/api/bootstrap', async (req, res) => {
     }
 
     // Récupération parallèle
-    // Note: Pour config, on récupère toute la liste pour trier par type ensuite
     const [clientsReq, poseursReq, configList] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
       pb.collection('config').getFullList().catch(() => [])
     ]);
 
-    // Mapping des configurations par type
-    // type 0 = URL Export (webhook_url)
-    // type 1 = URL Client (client_webhook_url)
-    const exportConfig = configList.find(c => c.type === 0);
-    const clientConfig = configList.find(c => c.type === 1);
+    // Mapping des configurations par type (0 = Export, 1 = Client)
+    // Note: Le champ type est défini comme 'text' dans le schéma
+    const exportConfig = configList.find(c => c.type === "0");
+    const clientConfig = configList.find(c => c.type === "1");
 
-    const finalWebhookUrl = exportConfig?.url || ENV_WEBHOOK_URL || "http://default-webhook.com";
-    const finalClientWebhookUrl = clientConfig?.url || "";
+    // On utilise le champ 'webhook_url' défini dans le schéma
+    const finalWebhookUrl = exportConfig?.webhook_url || ENV_WEBHOOK_URL || "http://default-webhook.com";
+    const finalClientWebhookUrl = clientConfig?.webhook_url || "";
 
     res.json({
       webhook_url: finalWebhookUrl,
@@ -197,17 +196,18 @@ app.post('/api/config', requirePb, async (req, res) => {
     const { webhook_url, client_webhook_url } = req.body;
     
     // Fonction utilitaire pour mettre à jour ou créer une config selon son type
-    const upsertConfig = async (type, urlValue) => {
+    const upsertConfig = async (typeStr, urlValue) => {
        if (urlValue === undefined) return null;
        
        try {
-         // Tente de trouver par type
-         const record = await pb.collection('config').getFirstListItem(`type=${type}`);
-         return await pb.collection('config').update(record.id, { url: urlValue });
+         // Tente de trouver par type (format texte)
+         const record = await pb.collection('config').getFirstListItem(`type="${typeStr}"`);
+         // Mise à jour du champ 'webhook_url'
+         return await pb.collection('config').update(record.id, { webhook_url: urlValue });
        } catch (e) {
          // Si non trouvé (404), on crée
          if (e.status === 404) {
-            return await pb.collection('config').create({ type, url: urlValue });
+            return await pb.collection('config').create({ type: typeStr, webhook_url: urlValue });
          }
          throw e;
        }
@@ -215,10 +215,10 @@ app.post('/api/config', requirePb, async (req, res) => {
 
     const results = {};
     if (webhook_url !== undefined) {
-      results.export = await upsertConfig(0, webhook_url);
+      results.export = await upsertConfig("0", webhook_url);
     }
     if (client_webhook_url !== undefined) {
-      results.client = await upsertConfig(1, client_webhook_url);
+      results.client = await upsertConfig("1", client_webhook_url);
     }
 
     res.json({ success: true, updates: results });
