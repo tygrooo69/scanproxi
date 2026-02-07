@@ -92,6 +92,16 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
       data.num_bon_travaux = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
     }
 
+    // Nettoyage du Descriptif : MAJUSCULE + Suppression accents/spéciaux
+    if (data.descriptif_travaux) {
+      data.descriptif_travaux = data.descriptif_travaux
+        .toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Retire les accents
+        .replace(/[^A-Z0-9\s]/g, " ") // Ne garde que A-Z, 0-9 et Espaces (retire ponctuation, parenthèses etc)
+        .replace(/\s+/g, " ") // Evite les doubles espaces
+        .trim();
+    }
+
     // Sécurité supplémentaire pour tronquer les adresses si l'IA a halluciné > 40 chars
     if (data.adresse_1) data.adresse_1 = data.adresse_1.substring(0, 40);
     if (data.adresse_2) data.adresse_2 = data.adresse_2.substring(0, 40);
