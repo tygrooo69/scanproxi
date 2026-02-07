@@ -152,7 +152,15 @@ app.get('/api/bootstrap', async (req, res) => {
       webhook_url: finalWebhookUrl,
       client_webhook_url: finalClientWebhookUrl,
       clients: clientsReq.map(c => ({ id: c.id, nom: c.nom, codeClient: c.codeClient, typeAffaire: c.typeAffaire })),
-      poseurs: poseursReq.map(p => ({ id: p.id, nom: p.nom, entreprise: p.entreprise, telephone: p.telephone, specialite: p.specialite, codeSalarie: p.codeSalarie }))
+      poseurs: poseursReq.map(p => ({ 
+        id: p.id, 
+        nom: p.nom, 
+        entreprise: p.entreprise, 
+        telephone: p.telephone, 
+        specialite: p.specialite, 
+        codeSalarie: p.codeSalarie,
+        type: p.type // Ajout du champ type
+      }))
     });
   } catch (error) {
     console.error('Erreur Bootstrap:', error);

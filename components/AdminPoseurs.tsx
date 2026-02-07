@@ -4,20 +4,27 @@ import { fetchStorageConfig, addPoseur, updatePoseur, deletePoseur } from '../se
 
 const AdminPoseurs: React.FC = () => {
   const [poseurs, setPoseurs] = useState<Poseur[]>([]);
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  const initialForm = { nom: '', entreprise: '', telephone: '', specialite: '', codeSalarie: '' };
+  const initialForm = { nom: '', entreprise: '', telephone: '', specialite: '', codeSalarie: '', type: '' };
   const [newPoseur, setNewPoseur] = useState<Omit<Poseur, 'id'>>(initialForm);
   const [editForm, setEditForm] = useState<Omit<Poseur, 'id'>>(initialForm);
 
-  const reloadPoseurs = async () => {
+  const reloadData = async () => {
     const config = await fetchStorageConfig();
-    if (config) setPoseurs(config.poseurs);
+    if (config) {
+      setPoseurs(config.poseurs);
+      
+      // Extraction des Types Affaire uniques depuis la liste des clients
+      const types = Array.from(new Set(config.clients.map(c => c.typeAffaire).filter(Boolean)));
+      setAvailableTypes(types.sort());
+    }
   };
 
-  useEffect(() => { reloadPoseurs(); }, []);
+  useEffect(() => { reloadData(); }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +33,7 @@ const AdminPoseurs: React.FC = () => {
     if (result) {
       setNewPoseur(initialForm);
       setIsAdding(false);
-      await reloadPoseurs();
+      await reloadData();
     }
     setIsSaving(false);
   };
@@ -36,7 +43,7 @@ const AdminPoseurs: React.FC = () => {
     const success = await updatePoseur(id, editForm);
     if (success) {
       setEditingId(null);
-      await reloadPoseurs();
+      await reloadData();
     }
     setIsSaving(false);
   };
@@ -45,13 +52,20 @@ const AdminPoseurs: React.FC = () => {
     if (!confirm("Supprimer ce poseur ?")) return;
     setIsSaving(true);
     const success = await deletePoseur(id);
-    if (success) await reloadPoseurs();
+    if (success) await reloadData();
     setIsSaving(false);
   };
 
   const startEditing = (p: Poseur) => {
     setEditingId(p.id);
-    setEditForm({ nom: p.nom, entreprise: p.entreprise, telephone: p.telephone, specialite: p.specialite, codeSalarie: p.codeSalarie });
+    setEditForm({ 
+      nom: p.nom, 
+      entreprise: p.entreprise, 
+      telephone: p.telephone, 
+      specialite: p.specialite, 
+      codeSalarie: p.codeSalarie,
+      type: p.type || '' 
+    });
   };
 
   return (
@@ -65,32 +79,81 @@ const AdminPoseurs: React.FC = () => {
 
       {isAdding && (
         <form onSubmit={handleAdd} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input placeholder="Nom" className="p-2 border rounded" value={newPoseur.nom} onChange={e => setNewPoseur({...newPoseur, nom: e.target.value})} />
+          <input placeholder="Nom" className="p-2 border rounded" value={newPoseur.nom} onChange={e => setNewPoseur({...newPoseur, nom: e.target.value})} required />
           <input placeholder="Entreprise" className="p-2 border rounded" value={newPoseur.entreprise} onChange={e => setNewPoseur({...newPoseur, entreprise: e.target.value})} />
           <input placeholder="Téléphone" className="p-2 border rounded" value={newPoseur.telephone} onChange={e => setNewPoseur({...newPoseur, telephone: e.target.value})} />
           <input placeholder="Code Salarié" className="p-2 border rounded" value={newPoseur.codeSalarie} onChange={e => setNewPoseur({...newPoseur, codeSalarie: e.target.value})} />
+          
+          <div className="md:col-span-1">
+             <input placeholder="Spécialité" className="w-full p-2 border rounded" value={newPoseur.specialite} onChange={e => setNewPoseur({...newPoseur, specialite: e.target.value})} />
+          </div>
+
+          <div className="md:col-span-1">
+             <select 
+               className="w-full p-2 border rounded bg-slate-50 border-slate-200 text-slate-700"
+               value={newPoseur.type} 
+               onChange={e => setNewPoseur({...newPoseur, type: e.target.value})}
+             >
+               <option value="">-- Type Affaire --</option>
+               {availableTypes.map(type => (
+                 <option key={type} value={type}>{type}</option>
+               ))}
+             </select>
+          </div>
+
           <button type="submit" disabled={isSaving} className="col-span-2 bg-emerald-600 text-white py-2 rounded font-bold">Ajouter</button>
         </form>
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {poseurs.map(p => (
-          <div key={p.id} className="p-4 border-b last:border-0 flex items-center justify-between hover:bg-slate-50">
+          <div key={p.id} className="p-4 border-b last:border-0 flex flex-col md:flex-row md:items-center justify-between hover:bg-slate-50 gap-4">
             {editingId === p.id ? (
-              <div className="w-full flex gap-2">
-                <input className="border p-1 rounded flex-1" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} />
-                <button onClick={() => handleUpdate(p.id)} className="bg-emerald-500 text-white px-3 rounded">OK</button>
-                <button onClick={() => setEditingId(null)} className="bg-slate-400 text-white px-3 rounded">X</button>
+              <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input className="border p-1 rounded" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} placeholder="Nom" />
+                <input className="border p-1 rounded" value={editForm.entreprise} onChange={e => setEditForm({...editForm, entreprise: e.target.value})} placeholder="Entreprise" />
+                <select 
+                   className="border p-1 rounded"
+                   value={editForm.type} 
+                   onChange={e => setEditForm({...editForm, type: e.target.value})}
+                 >
+                   <option value="">-- Type Affaire --</option>
+                   {availableTypes.map(type => (
+                     <option key={type} value={type}>{type}</option>
+                   ))}
+                 </select>
+                 
+                <div className="md:col-span-3 flex gap-2 justify-end mt-2">
+                    <button onClick={() => handleUpdate(p.id)} className="bg-emerald-500 text-white px-3 py-1 rounded">Enregistrer</button>
+                    <button onClick={() => setEditingId(null)} className="bg-slate-400 text-white px-3 py-1 rounded">Annuler</button>
+                </div>
               </div>
             ) : (
               <>
-                <div>
-                  <div className="font-bold">{p.nom}</div>
-                  <div className="text-xs text-slate-500">{p.entreprise} • {p.telephone}</div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800">{p.nom}</span>
+                    {p.type && (
+                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                         {p.type}
+                       </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                    <span className="bg-slate-100 px-1.5 rounded">{p.entreprise}</span>
+                    <span>•</span>
+                    <span>{p.telephone}</span>
+                    {p.codeSalarie && (
+                        <>
+                            <span>•</span>
+                            <span className="font-mono text-slate-400">{p.codeSalarie}</span>
+                        </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => startEditing(p)} className="text-indigo-600"><i className="fas fa-edit"></i></button>
-                  <button onClick={() => handleDelete(p.id)} className="text-red-500"><i className="fas fa-trash"></i></button>
+                <div className="flex gap-3">
+                  <button onClick={() => startEditing(p)} className="text-indigo-600 hover:text-indigo-800"><i className="fas fa-edit"></i></button>
+                  <button onClick={() => handleDelete(p.id)} className="text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
                 </div>
               </>
             )}

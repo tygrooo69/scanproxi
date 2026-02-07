@@ -17,6 +17,7 @@ export interface Poseur {
   telephone: string;
   specialite: string;
   codeSalarie: string;
+  type?: string; // Lien avec le Type Affaire du client
 }
 
 export interface Client {
