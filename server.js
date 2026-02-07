@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import cors from 'cors';
 import PocketBase from 'pocketbase';
+import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,6 +251,8 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
         if (line.startsWith('DTEND')) currentEvent.end = parseDate(line.split(':')[1]);
         if (line.startsWith('SUMMARY')) currentEvent.title = line.split(':')[1];
         if (line.startsWith('LOCATION')) currentEvent.location = line.split(':')[1];
+        if (line.startsWith('DESCRIPTION')) currentEvent.description = line.split(':')[1];
+        if (line.startsWith('UID')) currentEvent.uid = line.split(':')[1];
       }
     }
 
@@ -264,6 +267,81 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
     console.error("Calendar Proxy Error:", err);
     // On retourne l'URL même en cas d'exception (timeout, dns, etc)
     res.status(500).json({ error: err.message, debugUrl: icsUrl });
+  }
+});
+
+// --- CALENDAR WRITE (Create/Update via WebDAV) ---
+app.post('/api/calendar/event/save', requirePb, async (req, res) => {
+  let targetUrl = "";
+  try {
+    const { poseur_id, event } = req.body;
+    
+    // 1. Config Check
+    const ncConfig = await pb.collection('nextcloud_config').getFirstListItem('');
+    const poseur = await pb.collection('poseurs').getOne(poseur_id);
+
+    if (!ncConfig || !poseur || !poseur.nextcloud_user) {
+      return res.status(400).json({ error: "Configuration manquante" });
+    }
+
+    const uid = event.uid || randomUUID();
+    const fileName = `${uid}.ics`;
+    const baseUrl = ncConfig.url.replace(/\/$/, '');
+    
+    // URL WebDAV pour PUT
+    targetUrl = `${baseUrl}/remote.php/dav/calendars/${poseur.nextcloud_user}/personal/${fileName}`;
+
+    // 2. Génération VCALENDAR
+    const formatDate = (dateStr) => {
+       const d = new Date(dateStr);
+       return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    const now = formatDate(new Date().toISOString());
+    const start = formatDate(event.start);
+    const end = formatDate(event.end);
+    
+    const vCalendarData = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BuildScan//NONSGML v2.0//EN',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${event.title || 'Nouvel Événement'}`,
+      `DESCRIPTION:${event.description || ''}`,
+      `LOCATION:${event.location || ''}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    // 3. Envoi PUT vers Nextcloud
+    const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');
+    
+    const response = await fetch(targetUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'If-None-Match': '*' // Optionnel, pour éviter d'écraser aveuglément si nécessaire
+      },
+      body: vCalendarData
+    });
+
+    if (response.ok || response.status === 201 || response.status === 204) {
+      res.json({ success: true, message: "Événement enregistré", uid: uid });
+    } else {
+      res.status(response.status).json({ 
+        error: `Erreur Nextcloud WebDAV: ${response.statusText}`,
+        debugUrl: targetUrl
+      });
+    }
+
+  } catch (err) {
+    console.error("Save Event Error:", err);
+    res.status(500).json({ error: err.message, debugUrl: targetUrl });
   }
 });
 
