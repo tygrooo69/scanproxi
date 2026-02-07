@@ -351,8 +351,10 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
         const cleanBase64 = file.data.replace(/\s/g, '');
         // On sécurise le nom de fichier
         const safeFileName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'document.pdf';
+        
         // Ajout du paramètre X-FILENAME pour Nextcloud
-        const attachLine = `ATTACH;FMTTYPE=application/pdf;X-FILENAME=${safeFileName};ENCODING=BASE64;VALUE=BINARY:${cleanBase64}`;
+        // Format plus robuste avec guillemets et X-APPLE-FILENAME pour compatibilité maximale
+        const attachLine = `ATTACH;FMTTYPE=application/pdf;X-FILENAME="${safeFileName}";X-APPLE-FILENAME="${safeFileName}";VALUE=BINARY;ENCODING=BASE64:${cleanBase64}`;
         
         // IMPORTANT: On applique le folding ici
         vCalendarBody.push(foldLine(attachLine));

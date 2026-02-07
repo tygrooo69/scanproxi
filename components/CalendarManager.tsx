@@ -234,10 +234,10 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
 
       const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
 
-      // 2. Construction du titre : Bon - Affaire - Client
+      // 2. Construction du titre : N° Affaire - N° Bon - Client
       const titleParts = [
-        data.num_bon_travaux ? `${data.num_bon_travaux}` : null,
         chantierNumber ? `${chantierNumber}` : null,
+        data.num_bon_travaux ? `${data.num_bon_travaux}` : null,
         data.nom_client
       ].filter(Boolean);
 
