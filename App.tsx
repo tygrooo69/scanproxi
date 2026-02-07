@@ -355,8 +355,9 @@ const App: React.FC = () => {
                                 poseurs={allPoseurs}
                                 selectedPoseurId={selectedPoseurId}
                                 data={extractedData}
-                                // Props de logging pour Nextcloud
                                 onAddLog={addLog}
+                                chantierNumber={autoChantierNumber}
+                                originalFile={originalFile}
                             />
                         </div>
                     </div>

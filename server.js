@@ -274,7 +274,7 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
 app.post('/api/calendar/event/save', requirePb, async (req, res) => {
   let targetUrl = "";
   try {
-    const { poseur_id, event } = req.body;
+    const { poseur_id, event, file } = req.body;
     
     // 1. Config Check
     const ncConfig = await pb.collection('nextcloud_config').getFirstListItem('');
@@ -307,11 +307,28 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
             .replace(/\r?\n/g, '\\n'); // Remplacer les sauts de ligne par \n littéral
     };
 
+    // Helper pour folder les lignes longues (notamment le base64) à 75 caractères
+    const foldLine = (line) => {
+        const MAX_LENGTH = 75;
+        if (line.length <= MAX_LENGTH) return line;
+        
+        let result = '';
+        let currentPos = 0;
+        
+        while (currentPos < line.length) {
+            let chunk = line.substr(currentPos, MAX_LENGTH);
+            result += chunk + '\r\n '; // Espace requis au début de la ligne suivante
+            currentPos += MAX_LENGTH;
+        }
+        
+        return result.trimEnd(); // Retirer le dernier CRLF + Espace inutile
+    };
+
     const now = formatDate(new Date().toISOString());
     const start = formatDate(event.start);
     const end = formatDate(event.end);
     
-    const vCalendarData = [
+    let vCalendarBody = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//BuildScan//NONSGML v2.0//EN',
@@ -322,10 +339,27 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
       `DTEND:${end}`,
       `SUMMARY:${escapeIcal(event.title || 'Nouvel Événement')}`,
       `DESCRIPTION:${escapeIcal(event.description || '')}`,
-      `LOCATION:${escapeIcal(event.location || '')}`,
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].join('\r\n');
+      `LOCATION:${escapeIcal(event.location || '')}`
+    ];
+
+    // Ajout de la pièce jointe PDF si présente
+    if (file && file.data) {
+        // En iCal, l'attachement binaire est inline.
+        // ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:MIICajCCAdOgAwIBAgICBEIwDQYJKoZIhvcNAQEEBQAw...
+        
+        // Note: Pour éviter de casser le parser avec une ligne géante, on ne fold pas ici manuellement
+        // car la plupart des serveurs modernes (y compris Nextcloud/Sabre) gèrent les lignes longues,
+        // ou alors il faut un folding très strict.
+        
+        // On retire les retours à la ligne éventuels dans le base64 reçu
+        const cleanBase64 = file.data.replace(/\s/g, '');
+        vCalendarBody.push(`ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:${cleanBase64}`);
+    }
+
+    vCalendarBody.push('END:VEVENT');
+    vCalendarBody.push('END:VCALENDAR');
+
+    const vCalendarData = vCalendarBody.join('\r\n');
 
     // 3. Envoi PUT vers Nextcloud
     const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');

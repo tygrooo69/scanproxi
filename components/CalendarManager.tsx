@@ -6,6 +6,8 @@ interface CalendarManagerProps {
   selectedPoseurId: string;
   data: ConstructionOrderData;
   onAddLog: (type: LogEntry['type'], message: string, data?: any) => void;
+  chantierNumber: string | null;
+  originalFile: File | null;
 }
 
 interface CalendarEvent {
@@ -18,7 +20,14 @@ interface CalendarEvent {
   isTentative?: boolean; // Pour le chantier en cours d'analyse
 }
 
-const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPoseurId, data, onAddLog }) => {
+const CalendarManager: React.FC<CalendarManagerProps> = ({ 
+  poseurs, 
+  selectedPoseurId, 
+  data, 
+  onAddLog, 
+  chantierNumber, 
+  originalFile 
+}) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -118,12 +127,32 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
     onAddLog('request', `Enregistrement rendez-vous vers Nextcloud...`);
 
     try {
+      // Préparation du fichier si c'est une création (isTentative) et qu'il y a un fichier
+      let fileData = null;
+      let fileName = null;
+
+      if (editingEvent.isTentative && originalFile) {
+        onAddLog('info', 'Préparation du PDF pour attachement...');
+        fileName = originalFile.name;
+        fileData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+             const result = reader.result as string;
+             // On retire l'en-tête data URL pour ne garder que le base64 pur
+             resolve(result.split(',')[1]); 
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(originalFile);
+        });
+      }
+
       const res = await fetch('/api/calendar/event/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poseur_id: selectedPoseurId,
-          event: editingEvent
+          event: editingEvent,
+          file: fileData ? { name: fileName, data: fileData } : undefined
         })
       });
 
@@ -131,6 +160,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
       
       if (res.ok && result.success) {
          onAddLog('success', `Rendez-vous enregistré avec succès (UID: ${result.uid})`);
+         if(fileData) onAddLog('success', 'PDF attaché au calendrier.');
          setIsModalOpen(false);
          fetchEvents(); // Rafraîchir
       } else {
@@ -149,16 +179,25 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
   const displayEvents = useMemo(() => {
     const list: CalendarEvent[] = [...events];
     
-    // Ajouter le chantier actuel comme événement "Fantôme" s'il n'existe pas déjà (basique)
+    // Ajouter le chantier actuel comme événement "Tentative" s'il n'existe pas déjà
     if (data.nom_client) {
       const start = jobDate;
       const end = new Date(start);
       end.setHours(start.getHours() + 4);
 
+      // Construction du titre : Client - Bon - Affaire
+      const titleParts = [
+        data.nom_client,
+        data.num_bon_travaux ? `${data.num_bon_travaux}` : null,
+        chantierNumber ? `${chantierNumber}` : null
+      ].filter(Boolean);
+
+      const title = titleParts.join(' - ');
+
       // On ajoute un ID factice pour pouvoir double-cliquer
       list.push({
         uid: 'tentative-preview',
-        title: `[NOUVEAU] ${data.nom_client}`,
+        title: title,
         start: start.toISOString(),
         end: end.toISOString(),
         location: `${data.adresse_1} ${data.adresse_3}`,
@@ -168,7 +207,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
     }
 
     return list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  }, [events, data, jobDate]);
+  }, [events, data, jobDate, chantierNumber]);
 
   // Générer les jours de la semaine avec l'offset
   const weekDays = useMemo(() => {
@@ -388,6 +427,14 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
                         onChange={e => setEditingEvent({...editingEvent, description: e.target.value})}
                       />
                    </div>
+
+                    {editingEvent.isTentative && originalFile && (
+                        <div className="bg-slate-700/50 p-2 rounded border border-slate-600 flex items-center gap-2">
+                             <i className="fas fa-paperclip text-sky-400"></i>
+                             <span className="text-[10px] text-slate-300 truncate">{originalFile.name}</span>
+                             <span className="text-[9px] bg-sky-500/20 text-sky-300 px-1 rounded ml-auto">Joint au calendrier</span>
+                        </div>
+                    )}
                    
                    <button 
                      type="submit" 
