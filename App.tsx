@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppStatus, ConstructionOrderData, AppView, Client, Poseur } from './types';
+import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
 import { fetchStorageConfig } from './services/configService';
 import Header from './components/Header';
@@ -19,6 +19,9 @@ const App: React.FC = () => {
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // Terminal Logs State (Shared)
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+
   // Data enrichment states
   const [mappedClient, setMappedClient] = useState<Client | null>(null);
   const [autoChantierNumber, setAutoChantierNumber] = useState<string | null>(null);
@@ -47,6 +50,20 @@ const App: React.FC = () => {
     };
   }, [filePreviewUrl]);
 
+  // --- SHARED LOGGING FUNCTION ---
+  const addLog = useCallback((type: LogEntry['type'], message: string, data?: any) => {
+    const newLog: LogEntry = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toLocaleTimeString(),
+      type,
+      message,
+      data
+    };
+    setLogs(prev => [...prev, newLog]);
+  }, []);
+
+  const clearLogs = useCallback(() => setLogs([]), []);
+
   // --- AUTOMATISATION LOGIQUE METIER ---
   
   // 1. Détection automatique du Client dès que les données sont extraites
@@ -74,7 +91,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Erreur parsing clients", e);
     }
-  }, [extractedData?.nom_client]); // Dépendance affinée sur le nom uniquement
+  }, [extractedData?.nom_client]);
 
   // 2. Récupération automatique du numéro d'affaire via Webhook
   useEffect(() => {
@@ -154,14 +171,12 @@ const App: React.FC = () => {
     if (currentView !== 'analyzer') setCurrentView('analyzer');
   };
 
-  // Handler pour la mise à jour manuelle des données extraites
   const handleDataUpdate = (updates: Partial<ConstructionOrderData>) => {
     if (extractedData) {
       setExtractedData({ ...extractedData, ...updates });
     }
   };
   
-  // Callback pour synchroniser le poseur sélectionné dans SqlExporter avec CalendarManager
   const handlePoseurSelect = (id: string, poseurs: Poseur[]) => {
       setSelectedPoseurId(id);
       setAllPoseurs(poseurs);
@@ -180,6 +195,9 @@ const App: React.FC = () => {
     setMappedClient(null);
     setAutoChantierNumber(null);
     setOriginalFile(file);
+    // Reset logs on new file
+    clearLogs();
+    addLog('info', 'Analyse du document démarrée...');
 
     try {
       const url = URL.createObjectURL(file);
@@ -197,6 +215,7 @@ const App: React.FC = () => {
       
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
+      addLog('success', 'Extraction IA terminée avec succès.', { client: data.nom_client });
     } catch (err: any) {
       console.error("Analyse échouée:", err);
       let msg = err.message || "Une erreur inconnue est survenue.";
@@ -205,8 +224,9 @@ const App: React.FC = () => {
       }
       setError(msg);
       setStatus(AppStatus.ERROR);
+      addLog('error', `Échec de l'analyse: ${msg}`);
     }
-  }, []);
+  }, [addLog, clearLogs]);
 
   const reset = () => {
     setStatus(AppStatus.IDLE);
@@ -218,6 +238,7 @@ const App: React.FC = () => {
     setSelectedPoseurId("");
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
+    clearLogs();
   };
 
   if (!isInitialized) {
@@ -323,6 +344,10 @@ const App: React.FC = () => {
                               mappedClient={mappedClient}
                               prefilledChantierNumber={autoChantierNumber}
                               onPoseurSelect={handlePoseurSelect}
+                              // Props de logging partagées
+                              logs={logs}
+                              onAddLog={addLog}
+                              onClearLogs={clearLogs}
                             />
                         </div>
                         <div className="h-full">
@@ -330,6 +355,8 @@ const App: React.FC = () => {
                                 poseurs={allPoseurs}
                                 selectedPoseurId={selectedPoseurId}
                                 data={extractedData}
+                                // Props de logging pour Nextcloud
+                                onAddLog={addLog}
                             />
                         </div>
                     </div>

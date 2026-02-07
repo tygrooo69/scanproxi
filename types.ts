@@ -1,3 +1,4 @@
+
 export interface ConstructionOrderData {
   num_bon_travaux: string | null;
   adresse_1: string | null;
@@ -42,7 +43,7 @@ export interface NextcloudConfig {
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'info' | 'request' | 'response' | 'error';
+  type: 'info' | 'success' | 'request' | 'response' | 'error';
   message: string;
   data?: any;
 }

@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Poseur, NextcloudConfig, ConstructionOrderData } from '../types';
+import { Poseur, NextcloudConfig, ConstructionOrderData, LogEntry } from '../types';
 
 interface CalendarManagerProps {
   poseurs: Poseur[];
   selectedPoseurId: string;
   data: ConstructionOrderData;
+  onAddLog: (type: LogEntry['type'], message: string, data?: any) => void;
 }
 
 interface CalendarEvent {
@@ -15,7 +16,7 @@ interface CalendarEvent {
   isTentative?: boolean; // Pour le chantier en cours d'analyse
 }
 
-const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPoseurId, data }) => {
+const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPoseurId, data, onAddLog }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -52,6 +53,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
     
     setIsLoading(true);
     setFetchError(null);
+    onAddLog('request', `Sync Nextcloud: Récupération agenda pour ${selectedPoseur.nextcloud_user}...`);
+
     try {
       const res = await fetch('/api/calendar/events', {
         method: 'POST',
@@ -64,12 +67,17 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
       const result = await res.json();
       if (result.success) {
         setEvents(result.events);
+        onAddLog('response', `Nextcloud: ${result.events.length} événements synchronisés.`, { 
+            poseur: selectedPoseur.nom, 
+            events_count: result.events.length 
+        });
       } else {
         throw new Error(result.error);
       }
     } catch (e: any) {
       console.error("Erreur Fetch Calendar:", e);
       setFetchError("Impossible de récupérer l'agenda.");
+      onAddLog('error', `Erreur Nextcloud CalDAV: ${e.message}`);
     } finally {
       setIsLoading(false);
     }

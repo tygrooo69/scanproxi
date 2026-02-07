@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef } from 'react';
 import { LogEntry } from '../types';
 
@@ -50,6 +51,7 @@ const Terminal: React.FC<TerminalProps> = ({ logs, onClear }) => {
                 <span className={`font-bold shrink-0 ${
                   log.type === 'request' ? 'text-blue-400' : 
                   log.type === 'response' ? 'text-emerald-400' : 
+                  log.type === 'success' ? 'text-green-400' : 
                   log.type === 'error' ? 'text-red-400' : 
                   'text-slate-400'
                 }`}>

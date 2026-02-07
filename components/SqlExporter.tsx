@@ -9,13 +9,25 @@ interface SqlExporterProps {
   prefilledChantierNumber: string | null;
   // Callback pour remonter la sélection au parent (pour le calendrier)
   onPoseurSelect?: (poseurId: string, poseurs: Poseur[]) => void;
+  // Shared Logs Props
+  logs: LogEntry[];
+  onAddLog: (type: LogEntry['type'], message: string, data?: any) => void;
+  onClearLogs: () => void;
 }
 
-const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedClient, prefilledChantierNumber, onPoseurSelect }) => {
+const SqlExporter: React.FC<SqlExporterProps> = ({ 
+  data, 
+  originalFile, 
+  mappedClient, 
+  prefilledChantierNumber, 
+  onPoseurSelect,
+  logs,
+  onAddLog,
+  onClearLogs
+}) => {
   const [copied, setCopied] = useState(false);
   const [transmitting, setTransmitting] = useState(false);
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   
   // Poseurs State
   const [poseurs, setPoseurs] = useState<Poseur[]>([]);
@@ -28,41 +40,25 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedCli
 
   const DEFAULT_WEBHOOK_URL = "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
 
-  // Memoization de addLog
-  const addLog = useCallback((type: LogEntry['type'], message: string, data?: any) => {
-    const newLog: LogEntry = {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toLocaleTimeString(),
-      type,
-      message,
-      data
-    };
-    setLogs(prev => [...prev, newLog]);
-  }, []);
-
-  const clearLogs = () => setLogs([]);
-
   // Mise à jour de l'input quand le Webhook (géré par le parent) renvoie un numéro
   useEffect(() => {
     if (prefilledChantierNumber) {
       setChantierInput(prefilledChantierNumber);
-      addLog('info', `Numéro d'affaire Webhook appliqué : ${prefilledChantierNumber}`);
+      onAddLog('info', `Numéro d'affaire Webhook appliqué : ${prefilledChantierNumber}`);
     } else {
       // Fallback si pas de webhook: numéro du bon
       const fromBon = escapeSql(data.num_bon_travaux).replace(/\D/g, '').substring(0, 6);
       if (fromBon) setChantierInput(fromBon);
     }
-  }, [prefilledChantierNumber, data.num_bon_travaux, addLog]);
+  }, [prefilledChantierNumber, data.num_bon_travaux, onAddLog]);
 
   useEffect(() => {
-    addLog('info', `Système prêt. Module de transmission binaire activé.`);
-    
     // Charger les poseurs
     const savedPoseurs = localStorage.getItem('buildscan_poseurs');
     if (savedPoseurs) {
       setPoseurs(JSON.parse(savedPoseurs));
     }
-  }, [addLog]);
+  }, []);
 
   // Présélection intelligente et AUTOMATIQUE du poseur
   useEffect(() => {
@@ -71,13 +67,13 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedCli
       
       if (match) {
         setSelectedPoseurId(match.id);
-        addLog('info', `Poseur assigné automatiquement : ${match.nom}`, {
+        onAddLog('info', `Poseur assigné automatiquement : ${match.nom}`, {
           type_match: match.type,
           client_type: mappedClient.typeAffaire
         });
       }
     }
-  }, [mappedClient?.typeAffaire, poseurs, addLog]);
+  }, [mappedClient?.typeAffaire, poseurs, onAddLog]);
 
   // Propagation au parent quand la sélection change ou que les poseurs sont chargés
   useEffect(() => {
@@ -181,7 +177,7 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       formData.append('poseur_type', selectedPoseur.type || '');
     }
 
-    addLog('request', `Envoi Multipart/FormData vers n8n...`, {
+    onAddLog('request', `Envoi Multipart/FormData vers n8n...`, {
       codeClient: codeCliFour,
       client_nom: mappedClient?.nom,
       bpu: mappedClient?.bpu,
@@ -201,14 +197,14 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
 
       if (response.ok) {
         setTransmitStatus('success');
-        addLog('response', `Réponse n8n : Succès (HTTP ${response.status})`);
+        onAddLog('response', `Réponse n8n : Succès (HTTP ${response.status})`);
       } else {
         throw new Error(`Erreur n8n : ${response.status}`);
       }
     } catch (err: any) {
       console.error("Erreur Webhook:", err);
       setTransmitStatus('error');
-      addLog('error', `Échec transmission: ${err.message}`);
+      onAddLog('error', `Échec transmission: ${err.message}`);
     } finally {
       setTransmitting(false);
       setTimeout(() => setTransmitStatus('idle'), 3000);
@@ -331,7 +327,7 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       </div>
 
       <div className="flex-grow">
-        <Terminal logs={logs} onClear={clearLogs} />
+        <Terminal logs={logs} onClear={onClearLogs} />
       </div>
     </div>
   );
