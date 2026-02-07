@@ -11,7 +11,7 @@ Instructions d'extraction :
 
 - gardien_nom : Extrait UNIQUEMENT le Nom et Prénom du gardien ou du contact sur place. (Ex: "M. Dupont", "Sophie Martin").
 - gardien_tel : Extrait UNIQUEMENT le numéro de téléphone du gardien ou contact. (Ex: "06 12 34 56 78").
-- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place si présente. (Ex: "gardien@example.com").
+- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place. RÈGLE STRICTE : Ignore les emails commençant par "facture", "factures" ou "billing". Si la seule adresse trouvée est de ce type, renvoie null.
 
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
 - delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la dernière date (la plus lointaine dans le temps).
@@ -34,7 +34,7 @@ const RESPONSE_SCHEMA = {
     
     gardien_nom: { type: Type.STRING, description: "Nom et Prénom du contact" },
     gardien_tel: { type: Type.STRING, description: "Téléphone du contact" },
-    gardien_email: { type: Type.STRING, description: "Email du contact si présent" },
+    gardien_email: { type: Type.STRING, description: "Email du contact (Hors facturation)" },
 
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
     delai_intervention: { type: Type.STRING, description: "Délai de validité (Dernière date)" },
