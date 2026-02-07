@@ -69,7 +69,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Erreur parsing clients", e);
     }
-  }, [extractedData]);
+  }, [extractedData?.nom_client]); // Dépendance affinée sur le nom uniquement
 
   // 2. Récupération automatique du numéro d'affaire via Webhook
   useEffect(() => {
@@ -147,6 +147,13 @@ const App: React.FC = () => {
   const handleAuthCancel = () => {
     setShowAuthModal(false);
     if (currentView !== 'analyzer') setCurrentView('analyzer');
+  };
+
+  // Handler pour la mise à jour manuelle des données extraites
+  const handleDataUpdate = (updates: Partial<ConstructionOrderData>) => {
+    if (extractedData) {
+      setExtractedData({ ...extractedData, ...updates });
+    }
   };
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -288,6 +295,7 @@ const App: React.FC = () => {
                       mappedClient={mappedClient}
                       chantierNumber={autoChantierNumber}
                       isFetchingChantier={isFetchingChantier}
+                      onUpdate={handleDataUpdate}
                     />
                     <SqlExporter 
                       data={extractedData} 

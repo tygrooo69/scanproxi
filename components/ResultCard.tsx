@@ -7,14 +7,20 @@ interface ResultCardProps {
   mappedClient: Client | null;
   chantierNumber: string | null;
   isFetchingChantier: boolean;
+  onUpdate: (updates: Partial<ConstructionOrderData>) => void;
 }
 
-const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, chantierNumber, isFetchingChantier }) => {
+const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, chantierNumber, isFetchingChantier, onUpdate }) => {
+  
+  const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
+    onUpdate({ [field]: value });
+  };
+
   const fields = [
-    { label: "Numéro de Bon", value: data.num_bon_travaux, icon: "fa-hashtag", color: "text-blue-600" },
-    { label: "Nom Client (PDF)", value: data.nom_client, icon: "fa-building", color: "text-indigo-600" },
-    { label: "Date du Document", value: data.date_intervention, icon: "fa-file-signature", color: "text-purple-600" },
-    { label: "Délai d'intervention", value: data.delai_intervention, icon: "fa-calendar-alt", color: "text-orange-600" },
+    { key: "num_bon_travaux", label: "Numéro de Bon", icon: "fa-hashtag", color: "text-blue-600" },
+    { key: "nom_client", label: "Nom Client (PDF)", icon: "fa-building", color: "text-indigo-600" },
+    { key: "date_intervention", label: "Date du Document", icon: "fa-file-signature", color: "text-purple-600" },
+    { key: "delai_intervention", label: "Délai d'intervention", icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
 
   return (
@@ -93,78 +99,110 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, ch
           <i className="fas fa-exclamation-circle text-slate-400"></i>
           <p className="text-xs text-slate-500 font-medium">
             Aucun mapping client trouvé pour "<span className="font-bold">{data.nom_client || 'Inconnu'}</span>". 
-            Rendez-vous dans l'onglet <span className="font-bold underline">Clients</span> pour l'ajouter.
+            Rendez-vous dans l'onglet <span className="font-bold underline">Clients</span> pour l'ajouter ou corrigez le nom ci-dessous.
           </p>
         </div>
       )}
 
-      {/* Affichage du Descriptif des Travaux */}
-      <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+      {/* Affichage du Descriptif des Travaux (Editable) */}
+      <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl focus-within:ring-2 focus-within:ring-blue-200 transition-all">
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-tools text-blue-500 text-xs"></i>
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descriptif des Travaux</span>
         </div>
-        <p className="text-sm font-semibold text-slate-800 leading-relaxed">
-          {data.descriptif_travaux || "Aucun descriptif trouvé dans le document."}
-        </p>
+        <textarea
+          value={data.descriptif_travaux || ""}
+          onChange={(e) => handleInputChange('descriptif_travaux', e.target.value)}
+          rows={4}
+          className="w-full bg-white border border-blue-100 rounded-lg p-3 text-sm font-semibold text-slate-800 leading-relaxed focus:outline-none focus:border-blue-400 resize-y"
+          placeholder="Saisissez le descriptif des travaux..."
+        />
       </div>
       
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Champs d'adresse spécifiques */}
+        {/* Champs d'adresse spécifiques (Editables) */}
         <div className="space-y-1 md:col-span-2">
           <div className="flex items-center gap-2 mb-1">
             <i className="fas fa-map-marker-alt text-red-600 w-4"></i>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Adresse d'intervention (3 Lignes)</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
-               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 1</span>
-               <span className="font-medium text-slate-900 truncate" title={data.adresse_1 || ''}>{data.adresse_1 || '-'}</span>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
-               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 2</span>
-               <span className="font-medium text-slate-900 truncate" title={data.adresse_2 || ''}>{data.adresse_2 || '-'}</span>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col">
-               <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Ligne 3</span>
-               <span className="font-medium text-slate-900 truncate" title={data.adresse_3 || ''}>{data.adresse_3 || '-'}</span>
-            </div>
+            {[
+              { key: 'adresse_1', label: 'Ligne 1' },
+              { key: 'adresse_2', label: 'Ligne 2' },
+              { key: 'adresse_3', label: 'Ligne 3' }
+            ].map((addr) => (
+              <div key={addr.key} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col focus-within:bg-white focus-within:border-blue-200 transition-colors">
+                <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">{addr.label}</span>
+                <input
+                  type="text"
+                  value={(data as any)[addr.key] || ""}
+                  onChange={(e) => handleInputChange(addr.key as keyof ConstructionOrderData, e.target.value)}
+                  className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                  placeholder="-"
+                />
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Informations Gardien */}
+        {/* Informations Gardien (Editables) */}
         <div className="space-y-1 md:col-span-2">
            <div className="flex items-center gap-2 mb-1">
               <i className="fas fa-user-tie text-emerald-600 w-4"></i>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact / Gardien</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Nom</span>
-                   <span className="font-medium text-slate-900 truncate">{data.gardien_nom || '-'}</span>
+                   <input
+                     type="text"
+                     value={data.gardien_nom || ""}
+                     onChange={(e) => handleInputChange('gardien_nom', e.target.value)}
+                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     placeholder="-"
+                   />
                 </div>
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Téléphone</span>
-                   <span className="font-medium text-slate-900 truncate">{data.gardien_tel || '-'}</span>
-                   {data.gardien_tel && <i className="fas fa-phone absolute right-3 top-3 text-emerald-100"></i>}
+                   <input
+                     type="text"
+                     value={data.gardien_tel || ""}
+                     onChange={(e) => handleInputChange('gardien_tel', e.target.value)}
+                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     placeholder="-"
+                   />
+                   <i className="fas fa-phone absolute right-3 top-3 text-emerald-100 pointer-events-none"></i>
                 </div>
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Email</span>
-                   <span className="font-medium text-slate-900 truncate" title={data.gardien_email || ''}>{data.gardien_email || '-'}</span>
-                   {data.gardien_email && <i className="fas fa-envelope absolute right-3 top-3 text-blue-100"></i>}
+                   <input
+                     type="text"
+                     value={data.gardien_email || ""}
+                     onChange={(e) => handleInputChange('gardien_email', e.target.value)}
+                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     placeholder="-"
+                   />
+                   <i className="fas fa-envelope absolute right-3 top-3 text-blue-100 pointer-events-none"></i>
                 </div>
             </div>
         </div>
 
-        {/* Autres champs standards */}
-        {fields.map((field, idx) => (
-          <div key={idx} className="space-y-1">
+        {/* Autres champs standards (Editables) */}
+        {fields.map((field) => (
+          <div key={field.key} className="space-y-1">
             <div className="flex items-center gap-2 mb-1">
               <i className={`fas ${field.icon} ${field.color} w-4`}></i>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{field.label}</span>
             </div>
-            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all ${!field.value ? 'italic text-slate-400' : 'font-medium text-slate-900 border-l-4 border-l-slate-200'}`}>
-              {field.value || 'Non renseigné'}
+            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all focus-within:bg-white focus-within:border-slate-300 border-l-4 border-l-slate-200`}>
+              <input
+                type="text"
+                value={(data as any)[field.key] || ""}
+                onChange={(e) => handleInputChange(field.key as keyof ConstructionOrderData, e.target.value)}
+                className="bg-transparent border-none p-0 w-full font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 placeholder:italic"
+                placeholder="Non renseigné"
+              />
             </div>
           </div>
         ))}

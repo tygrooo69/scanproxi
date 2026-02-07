@@ -11,7 +11,7 @@ Instructions d'extraction :
 
 - gardien_nom : Extrait UNIQUEMENT le Nom et Prénom du gardien ou du contact sur place. (Ex: "M. Dupont", "Sophie Martin").
 - gardien_tel : Extrait UNIQUEMENT le numéro de téléphone du gardien ou contact. (Ex: "06 12 34 56 78").
-- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place. RÈGLE STRICTE : Ignore les emails commençant par "facture", "factures" ou "billing". Si la seule adresse trouvée est de ce type, renvoie null.
+- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place. RÈGLE STRICTE : Ignore les emails commençant par "facture", "factures" ou "billing". Si aucune adresse valide n'est trouvée, renvoie une chaîne vide "".
 
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
 - delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la dernière date (la plus lointaine dans le temps).
@@ -22,7 +22,7 @@ Règles critiques :
 1. ADRESSE : Si l'adresse est longue, découpe-la intelligemment sur les 3 champs (adresse_1, adresse_2, adresse_3) pour ne pas dépasser 40 caractères par champ.
 2. CONFIDENTIALITÉ : Ne jamais extraire de prix, de montants HT, TTC ou de taux de TVA. Ignore totalement ces zones.
 3. FORMAT : Réponds exclusivement au format JSON pur.
-4. NULLITÉ : Si un champ n'est pas trouvé, inscris null.`;
+4. NULLITÉ : Si un champ n'est pas trouvé, inscris null (SAUF pour gardien_email qui doit être une chaîne vide "").`;
 
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -34,7 +34,7 @@ const RESPONSE_SCHEMA = {
     
     gardien_nom: { type: Type.STRING, description: "Nom et Prénom du contact" },
     gardien_tel: { type: Type.STRING, description: "Téléphone du contact" },
-    gardien_email: { type: Type.STRING, description: "Email du contact (Hors facturation)" },
+    gardien_email: { type: Type.STRING, description: "Email du contact (Hors facturation) ou vide" },
 
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
     delai_intervention: { type: Type.STRING, description: "Délai de validité (Dernière date)" },
@@ -96,6 +96,9 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     if (data.adresse_1) data.adresse_1 = data.adresse_1.substring(0, 40);
     if (data.adresse_2) data.adresse_2 = data.adresse_2.substring(0, 40);
     if (data.adresse_3) data.adresse_3 = data.adresse_3.substring(0, 40);
+
+    // Force gardien_email à être une chaîne vide si null ou undefined
+    if (!data.gardien_email) data.gardien_email = "";
 
     return data;
   } catch (err) {
