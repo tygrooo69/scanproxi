@@ -8,6 +8,7 @@ interface CalendarManagerProps {
   onAddLog: (type: LogEntry['type'], message: string, data?: any) => void;
   chantierNumber: string | null;
   originalFile: File | null;
+  onUpdate?: (updates: Partial<ConstructionOrderData>) => void;
 }
 
 interface CalendarEvent {
@@ -26,7 +27,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
   data, 
   onAddLog, 
   chantierNumber, 
-  originalFile 
+  originalFile,
+  onUpdate
 }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +54,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
 
   // Déterminer la date du chantier pour l'affichage initial
   const jobDate = useMemo(() => {
+    // Si delai_intervention contient une heure (format HHhMM), on ignore pour trouver la date de base
+    // Le regex cherche JJ/MM/AAAA
     const dateStr = data.delai_intervention || data.date_intervention;
     if (!dateStr) return new Date();
     const parts = dateStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
@@ -179,60 +183,97 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     }
   };
 
-  const displayEvents = useMemo(() => {
-    const list: CalendarEvent[] = [...events];
-    
-    // Ajouter le chantier actuel comme événement "Tentative" s'il n'existe pas déjà
-    if (data.nom_client) {
-      
-      // 1. Calcul des dates et recherche de créneau (Algorithme Tetris)
-      let tentativeStart = new Date(jobDate);
-      // Force à 8h30 si l'heure n'est pas définie correctement ou si c'est le début de recherche
+  // Logique pure pour trouver le prochain créneau (Tetris)
+  const findNextAvailableSlot = (baseDate: Date, existingEvents: CalendarEvent[]) => {
+      let tentativeStart = new Date(baseDate);
       tentativeStart.setHours(8, 30, 0, 0);
 
       const DURATION_MINUTES = 120; // 2 heures
       const MAX_START_HOUR = 15;
       const MAX_START_MINUTE = 30;
 
-      // Filtrer les événements du même jour
-      const dayEvents = list.filter(e => {
-        const evtDate = new Date(e.start);
-        return evtDate.toDateString() === tentativeStart.toDateString();
-      }).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
-      // Boucle pour trouver le premier créneau libre de 2h
+      while(isWeekend(tentativeStart)) {
+         tentativeStart.setDate(tentativeStart.getDate() + 1);
+         tentativeStart.setHours(8, 30, 0, 0);
+      }
+
       let isSlotFound = false;
-      
-      while (!isSlotFound) {
-         const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
-         
-         // Vérifier si on dépasse 17h30 (donc si start > 15h30)
-         if (tentativeStart.getHours() > MAX_START_HOUR || (tentativeStart.getHours() === MAX_START_HOUR && tentativeStart.getMinutes() > MAX_START_MINUTE)) {
-            // Si la journée est pleine, on arrête de chercher et on laisse à la fin (ou on pourrait passer au lendemain)
-            // Ici, on laisse la dernière valeur calculée (fin du dernier rdv), l'utilisateur avisera.
-            break; 
+      let safetyCounter = 0;
+
+      while (!isSlotFound && safetyCounter < 100) {
+         safetyCounter++;
+
+         if (tentativeStart.getHours() > MAX_START_HOUR || 
+            (tentativeStart.getHours() === MAX_START_HOUR && tentativeStart.getMinutes() > MAX_START_MINUTE)) {
+            tentativeStart.setDate(tentativeStart.getDate() + 1);
+            tentativeStart.setHours(8, 30, 0, 0);
+            while(isWeekend(tentativeStart)) {
+               tentativeStart.setDate(tentativeStart.getDate() + 1);
+            }
+            continue;
          }
 
-         // Vérifier les collisions
+         const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
+
+         const dayEvents = existingEvents.filter(e => {
+            const evtDate = new Date(e.start);
+            return evtDate.toDateString() === tentativeStart.toDateString();
+         });
+
          const collision = dayEvents.find(e => {
             const eStart = new Date(e.start).getTime();
             const eEnd = new Date(e.end).getTime();
             const tStart = tentativeStart.getTime();
             const tEnd = tentativeEnd.getTime();
-            // Chevauchement : (StartA < EndB) et (EndA > StartB)
             return (tStart < eEnd && tEnd > eStart);
          });
 
          if (collision) {
-            // Si collision, on se place juste après la fin de l'événement gênant
             tentativeStart = new Date(collision.end);
          } else {
-            // Pas de collision, c'est bon !
             isSlotFound = true;
          }
       }
+      
+      return { start: tentativeStart, end: new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000) };
+  };
 
-      const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
+  // Mise à jour automatique du champ Délai d'intervention
+  useEffect(() => {
+      if (events.length > 0 && onUpdate && data.nom_client) {
+          // On calcule le slot idéal basé sur la date actuelle du job (qui peut venir de l'OCR)
+          // Mais attention : si on met à jour 'data', 'jobDate' change peut-être.
+          // On évite la boucle infinie en comparant la valeur string.
+          
+          const slot = findNextAvailableSlot(jobDate, events);
+          
+          const day = String(slot.start.getDate()).padStart(2, '0');
+          const month = String(slot.start.getMonth() + 1).padStart(2, '0');
+          const year = slot.start.getFullYear();
+          const hour = String(slot.start.getHours()).padStart(2, '0');
+          const min = String(slot.start.getMinutes()).padStart(2, '0');
+          
+          const formattedString = `${day}/${month}/${year} ${hour}h${min}`;
+          
+          // Mise à jour uniquement si différent pour éviter boucle infinie
+          if (data.delai_intervention !== formattedString) {
+              // Petite protection : on ne met à jour que si l'ancien format n'avait pas déjà l'heure
+              // OU si on veut vraiment forcer l'agenda. Ici on force l'agenda.
+              onUpdate({ delai_intervention: formattedString });
+          }
+      }
+  }, [events, data.nom_client]); // On retire data.delai_intervention et jobDate des dépendances directes pour casser la boucle, on recalcule quand events change ou le client change
+
+  const displayEvents = useMemo(() => {
+    const list: CalendarEvent[] = [...events];
+    
+    // Ajouter le chantier actuel comme événement "Tentative" s'il n'existe pas déjà
+    if (data.nom_client) {
+      
+      // On réutilise la logique centralisée
+      const slot = findNextAvailableSlot(jobDate, list);
 
       // 2. Construction du titre : N° Affaire - N° Bon - Client
       const titleParts = [
@@ -247,8 +288,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
       list.push({
         uid: 'tentative-preview',
         title: title,
-        start: tentativeStart.toISOString(),
-        end: tentativeEnd.toISOString(),
+        start: slot.start.toISOString(),
+        end: slot.end.toISOString(),
         location: `${data.adresse_1} ${data.adresse_3}`,
         description: `Client: ${data.nom_client}\nTel: ${data.gardien_tel || 'N/A'}\n${data.descriptif_travaux}`,
         isTentative: true

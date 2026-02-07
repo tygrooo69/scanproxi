@@ -19,6 +19,9 @@ const App: React.FC = () => {
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // Layout State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   // Terminal Logs State (Shared)
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
@@ -31,6 +34,10 @@ const App: React.FC = () => {
   const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
   const [allPoseurs, setAllPoseurs] = useState<Poseur[]>([]);
   
+  // Transmission State (Moved from SqlExporter)
+  const [transmitting, setTransmitting] = useState(false);
+  const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -38,7 +45,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       console.log('🚀 Initialisation BuildScan AI...');
-      await fetchStorageConfig(); // Pré-chargement du cache
+      const config = await fetchStorageConfig(); // Pré-chargement du cache
+      if (config) {
+        setAllPoseurs(config.poseurs);
+      }
       setIsInitialized(true);
     };
     initApp();
@@ -66,7 +76,7 @@ const App: React.FC = () => {
 
   // --- AUTOMATISATION LOGIQUE METIER ---
   
-  // 1. Détection automatique du Client dès que les données sont extraites
+  // 1. Détection automatique du Client et Poseur
   useEffect(() => {
     if (!extractedData?.nom_client) {
       setMappedClient(null);
@@ -88,10 +98,20 @@ const App: React.FC = () => {
       });
       
       setMappedClient(found || null);
+
+      // Auto-assignation Poseur
+      if (found && found.typeAffaire && allPoseurs.length > 0) {
+         const match = allPoseurs.find(p => p.type === found.typeAffaire);
+         if (match) {
+            setSelectedPoseurId(match.id);
+            addLog('info', `Poseur pré-sélectionné : ${match.nom} (Type: ${match.type})`);
+         }
+      }
+
     } catch (e) {
       console.error("Erreur parsing clients", e);
     }
-  }, [extractedData?.nom_client]);
+  }, [extractedData?.nom_client, allPoseurs, addLog]);
 
   // 2. Récupération automatique du numéro d'affaire via Webhook
   useEffect(() => {
@@ -145,6 +165,89 @@ const App: React.FC = () => {
   }, [mappedClient]);
 
 
+  // --- TRANSMISSION WEBHOOK (Moved from SqlExporter) ---
+  const handleTransmit = async () => {
+      if (!extractedData) return;
+      
+      setTransmitting(true);
+      setTransmitStatus('idle');
+      const webhookUrl = localStorage.getItem('buildscan_webhook_url') || "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
+      
+      // Calcul des données dérivées pour l'envoi
+      const chantier = autoChantierNumber || (extractedData.num_bon_travaux ? extractedData.num_bon_travaux.replace(/\D/g, '').substring(0, 6) : "000000");
+      const imputation = `80${chantier}0`;
+      const fullAddress = [extractedData.adresse_1, extractedData.adresse_2, extractedData.adresse_3].filter(Boolean).join(' ');
+      const contactFull = [extractedData.gardien_nom, extractedData.gardien_tel].filter(Boolean).join(' - ');
+      const selectedPoseur = allPoseurs.find(p => p.id === selectedPoseurId);
+
+      const formData = new FormData();
+      
+      if (originalFile) {
+        formData.append('file', originalFile, 'document.pdf');
+      }
+      
+      formData.append('codeClient', mappedClient?.codeClient || '');
+      formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
+      formData.append('client_bpu', mappedClient?.bpu || '');
+      formData.append('client_nom', mappedClient?.nom || '');
+      formData.append('num_chantier', chantier);
+      formData.append('imputation', imputation);
+      formData.append('source', "BuildScan AI");
+      formData.append('timestamp', new Date().toISOString());
+
+      formData.append('num_bon_travaux', extractedData.num_bon_travaux || '');
+      formData.append('nom_client', extractedData.nom_client || '');
+      
+      formData.append('adresse_1', extractedData.adresse_1 || '');
+      formData.append('adresse_2', extractedData.adresse_2 || '');
+      formData.append('adresse_3', extractedData.adresse_3 || '');
+      formData.append('adresse_intervention', fullAddress);
+
+      formData.append('gardien_nom', extractedData.gardien_nom || '');
+      formData.append('gardien_tel', extractedData.gardien_tel || '');
+      formData.append('gardien_email', extractedData.gardien_email || '');
+      formData.append('coord_gardien', contactFull);
+      
+      formData.append('delai_intervention', extractedData.delai_intervention || '');
+      formData.append('date_intervention', extractedData.date_intervention || '');
+      formData.append('descriptif_travaux', extractedData.descriptif_travaux || '');
+      formData.append('libelle', extractedData.nom_client || '');
+
+      if (selectedPoseur) {
+        formData.append('poseur_id', selectedPoseur.id);
+        formData.append('poseur_nom', selectedPoseur.nom);
+        formData.append('poseur_code', selectedPoseur.codeSalarie || '');
+        formData.append('poseur_type', selectedPoseur.type || '');
+      }
+
+      addLog('request', `Envoi vers n8n...`, { 
+          imputation, 
+          poseur: selectedPoseur?.nom 
+      });
+
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          setTransmitStatus('success');
+          addLog('response', `Réponse n8n : Succès (HTTP ${response.status})`);
+        } else {
+          throw new Error(`Erreur n8n : ${response.status}`);
+        }
+      } catch (err: any) {
+        console.error("Erreur Webhook:", err);
+        setTransmitStatus('error');
+        addLog('error', `Échec transmission: ${err.message}`);
+      } finally {
+        setTransmitting(false);
+        setTimeout(() => setTransmitStatus('idle'), 3000);
+      }
+  };
+
+
   const handleViewChange = (view: AppView) => {
     if (view === 'analyzer') {
       setCurrentView('analyzer');
@@ -173,13 +276,13 @@ const App: React.FC = () => {
 
   const handleDataUpdate = (updates: Partial<ConstructionOrderData>) => {
     if (extractedData) {
-      setExtractedData({ ...extractedData, ...updates });
+      setExtractedData(prev => prev ? ({ ...prev, ...updates }) : null);
     }
   };
   
   const handlePoseurSelect = (id: string, poseurs: Poseur[]) => {
       setSelectedPoseurId(id);
-      setAllPoseurs(poseurs);
+      // setAllPoseurs(poseurs); // Déjà géré au chargement
   };
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -239,6 +342,8 @@ const App: React.FC = () => {
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
     clearLogs();
+    // Re-ouvrir la sidebar si on reset
+    setIsSidebarOpen(true);
   };
 
   if (!isInitialized) {
@@ -253,27 +358,30 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden">
       <Header currentView={currentView} onViewChange={handleViewChange} />
       
       {showAuthModal && (
         <AdminAuth onAuthenticated={handleAuthSuccess} onCancel={handleAuthCancel} />
       )}
 
-      <main className="flex-grow container mx-auto px-4 py-8 max-w-[95%]">
+      <main className="flex-grow container mx-auto px-4 py-8 max-w-[98%]">
         <div className="mx-auto">
           {currentView === 'admin' && <AdminDashboard />}
           
           {currentView === 'analyzer' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="flex flex-col lg:flex-row gap-6 transition-all duration-300">
               
-              {/* COLONNE GAUCHE : UPLOAD */}
-              <div className="lg:col-span-3 space-y-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                  <h2 className="text-xl font-black mb-4 flex items-center gap-2 uppercase tracking-tight">
-                    <i className="fas fa-file-pdf text-blue-600"></i>
-                    Scan PDF
-                  </h2>
+              {/* COLONNE GAUCHE : UPLOAD (Masquable) */}
+              <div className={`${isSidebarOpen ? 'lg:w-[350px] shrink-0' : 'w-0 overflow-hidden'} transition-all duration-300`}>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-24">
+                   <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-black flex items-center gap-2 uppercase tracking-tight">
+                        <i className="fas fa-file-pdf text-blue-600"></i>
+                        Scan PDF
+                      </h2>
+                      <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400"><i className="fas fa-times"></i></button>
+                   </div>
                   <FileUploader onFileSelect={handleFileSelect} disabled={status === AppStatus.ANALYZING} />
                   
                   {filePreviewUrl && (
@@ -287,10 +395,35 @@ const App: React.FC = () => {
                 </div>
               </div>
 
+              {/* BOUTON TOGGLE (Si sidebar fermée) */}
+              {!isSidebarOpen && (
+                 <div className="absolute left-4 top-28 z-40">
+                    <button 
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+                        title="Afficher Scan"
+                    >
+                        <i className="fas fa-file-pdf"></i>
+                    </button>
+                 </div>
+              )}
+
               {/* COLONNE DROITE : RESULTATS */}
-              <div className="lg:col-span-9 space-y-6">
+              <div className="flex-grow flex flex-col gap-6 min-w-0">
+                {/* BOUTON TOGGLE (Si sidebar ouverte, pour desktop) */}
+                {isSidebarOpen && status === AppStatus.SUCCESS && (
+                     <div className="hidden lg:flex justify-start">
+                        <button 
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-2"
+                        >
+                            <i className="fas fa-chevron-left"></i> Masquer le Scan (Plein écran)
+                        </button>
+                     </div>
+                )}
+
                 {status === AppStatus.IDLE && (
-                  <div className="bg-blue-600 rounded-2xl p-10 text-center text-white shadow-xl shadow-blue-900/20">
+                  <div className="bg-blue-600 rounded-2xl p-10 text-center text-white shadow-xl shadow-blue-900/20 mx-auto max-w-2xl mt-10">
                     <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
                       <i className="fas fa-robot text-4xl"></i>
                     </div>
@@ -300,14 +433,14 @@ const App: React.FC = () => {
                 )}
 
                 {status === AppStatus.ANALYZING && (
-                  <div className="bg-white border-2 border-blue-50 rounded-2xl p-16 text-center shadow-sm">
+                  <div className="bg-white border-2 border-blue-50 rounded-2xl p-16 text-center shadow-sm mx-auto max-w-2xl mt-10">
                     <div className="relative animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4 shadow-lg"></div>
                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Extraction en cours...</h3>
                   </div>
                 )}
 
                 {status === AppStatus.ERROR && (
-                  <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-8 animate-in shake duration-500">
+                  <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-8 animate-in shake duration-500 mx-auto max-w-2xl mt-10">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
                         <i className="fas fa-exclamation-triangle text-xl"></i>
@@ -325,32 +458,27 @@ const App: React.FC = () => {
 
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
-                    {/* RESULTAT PRINCIPAL */}
-                    <ResultCard 
-                      data={extractedData} 
-                      onReset={reset} 
-                      mappedClient={mappedClient}
-                      chantierNumber={autoChantierNumber}
-                      isFetchingChantier={isFetchingChantier}
-                      onUpdate={handleDataUpdate}
-                    />
-                    
-                    {/* EXPORT ET CALENDRIER CÔTE À CÔTE */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
-                        <div className="h-full">
-                             <SqlExporter 
-                              data={extractedData} 
-                              originalFile={originalFile || undefined} 
-                              mappedClient={mappedClient}
-                              prefilledChantierNumber={autoChantierNumber}
-                              onPoseurSelect={handlePoseurSelect}
-                              // Props de logging partagées
-                              logs={logs}
-                              onAddLog={addLog}
-                              onClearLogs={clearLogs}
-                            />
-                        </div>
-                        <div className="h-full">
+                    {/* LAYOUT GRID: RESULTATS (GAUCHE) + CALENDRIER (DROITE) */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                        {/* 1. RESULTATS */}
+                        <ResultCard 
+                            data={extractedData} 
+                            onReset={reset} 
+                            mappedClient={mappedClient}
+                            chantierNumber={autoChantierNumber}
+                            isFetchingChantier={isFetchingChantier}
+                            onUpdate={handleDataUpdate}
+                            // Props ajoutées pour transmission et poseur
+                            poseurs={allPoseurs}
+                            selectedPoseurId={selectedPoseurId}
+                            onPoseurSelect={setSelectedPoseurId}
+                            onTransmit={handleTransmit}
+                            isTransmitting={transmitting}
+                            transmitStatus={transmitStatus}
+                        />
+                        
+                        {/* 2. CALENDRIER (A DROITE) */}
+                        <div className="h-full min-h-[600px]">
                             <CalendarManager 
                                 poseurs={allPoseurs}
                                 selectedPoseurId={selectedPoseurId}
@@ -358,9 +486,22 @@ const App: React.FC = () => {
                                 onAddLog={addLog}
                                 chantierNumber={autoChantierNumber}
                                 originalFile={originalFile}
+                                onUpdate={handleDataUpdate}
                             />
                         </div>
                     </div>
+
+                    {/* 3. TERMINAL (EN BAS) */}
+                    <SqlExporter 
+                      data={extractedData} 
+                      originalFile={originalFile || undefined} 
+                      mappedClient={mappedClient}
+                      prefilledChantierNumber={autoChantierNumber}
+                      onPoseurSelect={(id) => setSelectedPoseurId(id)}
+                      logs={logs}
+                      onAddLog={addLog}
+                      onClearLogs={clearLogs}
+                    />
                   </div>
                 )}
               </div>
@@ -370,7 +511,7 @@ const App: React.FC = () => {
       </main>
       <footer className="bg-white border-t border-slate-200 py-6">
         <div className="container mx-auto px-4 text-center">
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.6 • Nextcloud Ed.</span>
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.7 • Nextcloud Ed.</span>
         </div>
       </footer>
     </div>
