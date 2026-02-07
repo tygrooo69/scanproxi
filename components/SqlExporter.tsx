@@ -5,9 +5,11 @@ import Terminal from './Terminal';
 interface SqlExporterProps {
   data: ConstructionOrderData;
   originalFile?: File;
+  mappedClient: Client | null;
+  prefilledChantierNumber: string | null;
 }
 
-const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
+const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedClient, prefilledChantierNumber }) => {
   const [copied, setCopied] = useState(false);
   const [transmitting, setTransmitting] = useState(false);
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -17,16 +19,14 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const [poseurs, setPoseurs] = useState<Poseur[]>([]);
   const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
 
-  // State for editable case number
   const escapeSql = (str: string | null) => str ? str.replace(/'/g, "''").trim() : "";
-  const [chantierInput, setChantierInput] = useState<string>(() => 
-    escapeSql(data.num_bon_travaux).replace(/\D/g, '').substring(0, 6) || "000000"
-  );
-  const [fetchingChantier, setFetchingChantier] = useState(false);
+  
+  // Le chantierInput est initialisé avec prefilledChantierNumber s'il existe, sinon on prend le numéro du bon, sinon 000000
+  const [chantierInput, setChantierInput] = useState<string>("000000");
 
   const DEFAULT_WEBHOOK_URL = "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
 
-  // Memoization de addLog pour l'utiliser dans les useEffect
+  // Memoization de addLog
   const addLog = useCallback((type: LogEntry['type'], message: string, data?: any) => {
     const newLog: LogEntry = {
       id: crypto.randomUUID(),
@@ -40,9 +40,20 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
 
   const clearLogs = () => setLogs([]);
 
+  // Mise à jour de l'input quand le Webhook (géré par le parent) renvoie un numéro
+  useEffect(() => {
+    if (prefilledChantierNumber) {
+      setChantierInput(prefilledChantierNumber);
+      addLog('info', `Numéro d'affaire Webhook appliqué : ${prefilledChantierNumber}`);
+    } else {
+      // Fallback si pas de webhook: numéro du bon
+      const fromBon = escapeSql(data.num_bon_travaux).replace(/\D/g, '').substring(0, 6);
+      if (fromBon) setChantierInput(fromBon);
+    }
+  }, [prefilledChantierNumber, data.num_bon_travaux, addLog]);
+
   useEffect(() => {
     addLog('info', `Système prêt. Module de transmission binaire activé.`);
-    addLog('info', `En attente d'envoi vers n8n via Multipart FormData.`);
     
     // Charger les poseurs
     const savedPoseurs = localStorage.getItem('buildscan_poseurs');
@@ -51,29 +62,9 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
     }
   }, [addLog]);
 
-  const mappedClient = useMemo(() => {
-    if (!data.nom_client) return null;
-    const saved = localStorage.getItem('buildscan_clients');
-    if (!saved) return null;
-    try {
-      const clients: Client[] = JSON.parse(saved);
-      const searchName = data.nom_client.toLowerCase().trim();
-      return clients.find(c => {
-        const clientRefNom = c.nom.toLowerCase().trim();
-        return searchName === clientRefNom || 
-               searchName.includes(clientRefNom) || 
-               clientRefNom.includes(searchName);
-      });
-    } catch (e) {
-      return null;
-    }
-  }, [data.nom_client]);
-
   // Présélection intelligente et AUTOMATIQUE du poseur
-  // Se déclenche à chaque fois que le Type Affaire du client change (nouvelle analyse ou mapping)
   useEffect(() => {
     if (mappedClient?.typeAffaire && poseurs.length > 0) {
-      // On cherche un poseur qui a le même 'type' que le 'typeAffaire' du client
       const match = poseurs.find(p => p.type === mappedClient.typeAffaire);
       
       if (match) {
@@ -112,7 +103,6 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const codeTrv = mappedClient?.typeAffaire || "O3-0";
   const descTravaux = escapeSql(data.descriptif_travaux);
 
-  // Ajout du poseur dans le commentaire SQL si sélectionné
   const poseurComment = selectedPoseur ? ` | Poseur: ${selectedPoseur.nom}` : "";
 
   const sqlInsert = `INSERT INTO \`a_cht\` 
@@ -123,61 +113,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     navigator.clipboard.writeText(sqlInsert);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const fetchNextChantier = async () => {
-    const url = localStorage.getItem('buildscan_client_webhook_url');
-    if (!url) {
-      addLog('error', 'Erreur : Aucun Webhook "Numéro d\'affaire" configuré dans l\'admin.');
-      return;
-    }
-    
-    if (!mappedClient) {
-      addLog('error', 'Erreur : Client non identifié, impossible de demander un numéro.');
-      return;
-    }
-
-    setFetchingChantier(true);
-    addLog('request', `Demande de nouveau numéro d'affaire au webhook...`, { typeAffaire: mappedClient.typeAffaire, codeClient: mappedClient.codeClient });
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          typeAffaire: mappedClient.typeAffaire,
-          codeClient: mappedClient.codeClient,
-          nomClient: mappedClient.nom
-        })
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const result = await response.json();
-      addLog('response', `Réponse Webhook reçue`, result);
-      
-      let newNumber = "";
-      if (result.numero_affaire) newNumber = result.numero_affaire;
-      else if (result.next_id) newNumber = result.next_id;
-      else if (result.value) newNumber = result.value;
-      else if (typeof result === 'string') newNumber = result;
-      else if (typeof result === 'number') newNumber = String(result);
-      
-      if (newNumber) {
-        const cleanNumber = String(newNumber).replace(/\D/g, '');
-        const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
-        
-        setChantierInput(formattedNumber);
-        addLog('info', `Numéro d'affaire mis à jour : ${formattedNumber}`);
-      } else {
-        throw new Error("Format de réponse inconnu (attendu: numero_affaire ou next_id)");
-      }
-
-    } catch (e: any) {
-      addLog('error', `Échec récupération numéro : ${e.message}`);
-    } finally {
-      setFetchingChantier(false);
-    }
   };
 
   const transmitToWebhook = async () => {
@@ -218,7 +153,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       formData.append('poseur_id', selectedPoseur.id);
       formData.append('poseur_nom', selectedPoseur.nom);
       formData.append('poseur_code', selectedPoseur.codeSalarie || '');
-      // On envoie aussi le type pour information
       formData.append('poseur_type', selectedPoseur.type || '');
     }
 
@@ -351,18 +285,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
                   onChange={(e) => setChantierInput(e.target.value)}
                   className="bg-slate-900 border border-slate-600 text-white text-sm font-mono font-bold rounded px-2 py-1 w-full focus:outline-none focus:border-blue-500"
                 />
-                <button 
-                  onClick={fetchNextChantier}
-                  disabled={fetchingChantier || !mappedClient}
-                  title="Générer le prochain numéro via Webhook"
-                  className={`px-3 py-1 rounded font-bold text-xs transition-colors flex items-center justify-center ${
-                    fetchingChantier ? 'bg-slate-700 text-slate-500' : 
-                    !mappedClient ? 'bg-slate-800 text-slate-600 cursor-not-allowed' :
-                    'bg-indigo-600 text-white hover:bg-indigo-500'
-                  }`}
-                >
-                  {fetchingChantier ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-magic"></i>}
-                </button>
               </div>
             </div>
           </div>

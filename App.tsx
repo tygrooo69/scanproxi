@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppStatus, ConstructionOrderData, AppView } from './types';
+import { AppStatus, ConstructionOrderData, AppView, Client } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
 import { fetchStorageConfig } from './services/configService';
 import Header from './components/Header';
@@ -17,6 +17,11 @@ const App: React.FC = () => {
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ConstructionOrderData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Data enrichment states
+  const [mappedClient, setMappedClient] = useState<Client | null>(null);
+  const [autoChantierNumber, setAutoChantierNumber] = useState<string | null>(null);
+  const [isFetchingChantier, setIsFetchingChantier] = useState(false);
   
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -37,13 +42,93 @@ const App: React.FC = () => {
     };
   }, [filePreviewUrl]);
 
+  // --- AUTOMATISATION LOGIQUE METIER ---
+  
+  // 1. Détection automatique du Client dès que les données sont extraites
+  useEffect(() => {
+    if (!extractedData?.nom_client) {
+      setMappedClient(null);
+      return;
+    }
+
+    const saved = localStorage.getItem('buildscan_clients');
+    if (!saved) return;
+
+    try {
+      const clients: Client[] = JSON.parse(saved);
+      const searchName = extractedData.nom_client.toLowerCase().trim();
+      
+      const found = clients.find(c => {
+        const clientRefNom = c.nom.toLowerCase().trim();
+        return searchName === clientRefNom || 
+               searchName.includes(clientRefNom) || 
+               clientRefNom.includes(searchName);
+      });
+      
+      setMappedClient(found || null);
+    } catch (e) {
+      console.error("Erreur parsing clients", e);
+    }
+  }, [extractedData]);
+
+  // 2. Récupération automatique du numéro d'affaire via Webhook
+  useEffect(() => {
+    const fetchChantier = async () => {
+      if (!mappedClient) {
+        setAutoChantierNumber(null);
+        return;
+      }
+
+      const url = localStorage.getItem('buildscan_client_webhook_url');
+      if (!url) return;
+
+      setIsFetchingChantier(true);
+      try {
+        console.log(`📡 Appel Webhook Auto pour ${mappedClient.nom} (${mappedClient.typeAffaire})...`);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            typeAffaire: mappedClient.typeAffaire,
+            codeClient: mappedClient.codeClient,
+            nomClient: mappedClient.nom
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          let newNumber = "";
+          
+          if (result.numero_affaire) newNumber = result.numero_affaire;
+          else if (result.next_id) newNumber = result.next_id;
+          else if (result.value) newNumber = result.value;
+          else if (typeof result === 'string') newNumber = result;
+          else if (typeof result === 'number') newNumber = String(result);
+
+          if (newNumber) {
+            const cleanNumber = String(newNumber).replace(/\D/g, '');
+            const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
+            setAutoChantierNumber(formattedNumber);
+            console.log("✅ Numéro récupéré :", formattedNumber);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur Webhook Auto:", e);
+      } finally {
+        setIsFetchingChantier(false);
+      }
+    };
+
+    fetchChantier();
+  }, [mappedClient]);
+
+
   const handleViewChange = (view: AppView) => {
     if (view === 'analyzer') {
       setCurrentView('analyzer');
       return;
     }
     
-    // Protection de la vue Admin
     if (view === 'admin') {
       if (isAuthenticated) {
         setCurrentView('admin');
@@ -61,7 +146,6 @@ const App: React.FC = () => {
 
   const handleAuthCancel = () => {
     setShowAuthModal(false);
-    // On reste sur la vue actuelle ou on revient à l'analyseur si on était bloqué
     if (currentView !== 'analyzer') setCurrentView('analyzer');
   };
 
@@ -75,6 +159,8 @@ const App: React.FC = () => {
     setStatus(AppStatus.ANALYZING);
     setError(null);
     setExtractedData(null);
+    setMappedClient(null);
+    setAutoChantierNumber(null);
     setOriginalFile(file);
 
     try {
@@ -107,6 +193,8 @@ const App: React.FC = () => {
   const reset = () => {
     setStatus(AppStatus.IDLE);
     setExtractedData(null);
+    setMappedClient(null);
+    setAutoChantierNumber(null);
     setError(null);
     setOriginalFile(null);
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -194,8 +282,19 @@ const App: React.FC = () => {
 
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
-                    <ResultCard data={extractedData} onReset={reset} />
-                    <SqlExporter data={extractedData} originalFile={originalFile || undefined} />
+                    <ResultCard 
+                      data={extractedData} 
+                      onReset={reset} 
+                      mappedClient={mappedClient}
+                      chantierNumber={autoChantierNumber}
+                      isFetchingChantier={isFetchingChantier}
+                    />
+                    <SqlExporter 
+                      data={extractedData} 
+                      originalFile={originalFile || undefined} 
+                      mappedClient={mappedClient}
+                      prefilledChantierNumber={autoChantierNumber}
+                    />
                   </div>
                 )}
               </div>

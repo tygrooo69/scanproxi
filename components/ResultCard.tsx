@@ -1,33 +1,15 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ConstructionOrderData, Client } from '../types';
 
 interface ResultCardProps {
   data: ConstructionOrderData;
   onReset: () => void;
+  mappedClient: Client | null;
+  chantierNumber: string | null;
+  isFetchingChantier: boolean;
 }
 
-const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
-  // Récupérer les clients du localStorage pour la correspondance
-  const mappedClient = useMemo(() => {
-    if (!data.nom_client) return null;
-    const saved = localStorage.getItem('buildscan_clients');
-    if (!saved) return null;
-    try {
-      const clients: Client[] = JSON.parse(saved);
-      const searchName = data.nom_client.toLowerCase().trim();
-      
-      // On cherche une correspondance exacte ou partielle
-      return clients.find(c => {
-        const clientRefNom = c.nom.toLowerCase().trim();
-        return searchName === clientRefNom || 
-               searchName.includes(clientRefNom) || 
-               clientRefNom.includes(searchName);
-      });
-    } catch (e) {
-      return null;
-    }
-  }, [data.nom_client]);
-
+const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, chantierNumber, isFetchingChantier }) => {
   const fields = [
     { label: "Numéro de Bon", value: data.num_bon_travaux, icon: "fa-hashtag", color: "text-blue-600" },
     { label: "Nom Client (PDF)", value: data.nom_client, icon: "fa-building", color: "text-indigo-600" },
@@ -52,29 +34,53 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset }) => {
       </div>
 
       {mappedClient ? (
-        <div className="mx-6 mt-6 bg-emerald-50 border-2 border-emerald-100 rounded-xl p-5 flex items-center justify-between shadow-sm animate-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-200">
-              <i className="fas fa-link text-xl"></i>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Lien ERP SAMDB Actif</p>
-                <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">Match</span>
+        <div className="mx-6 mt-6 bg-emerald-50 border-2 border-emerald-100 rounded-xl p-5 shadow-sm animate-in zoom-in-95 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-200">
+                <i className="fas fa-link text-xl"></i>
               </div>
-              <p className="text-lg font-black text-slate-800">
-                Code Client : <span className="text-emerald-700 font-mono">{mappedClient.codeClient}</span>
-              </p>
-              <p className="text-xs text-slate-500 font-medium italic">
-                Type Affaire détecté : <span className="text-slate-700 font-bold">{mappedClient.typeAffaire || 'Standard'}</span>
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Lien ERP SAMDB Actif</p>
+                  <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">Match</span>
+                </div>
+                <p className="text-lg font-black text-slate-800">
+                  Code Client : <span className="text-emerald-700 font-mono">{mappedClient.codeClient}</span>
+                </p>
+              </div>
+            </div>
+            <div className="text-right hidden sm:block">
+               <span className="text-xs bg-white border border-emerald-200 text-emerald-700 px-3 py-1 rounded-full font-bold">
+                 {mappedClient.nom}
+               </span>
             </div>
           </div>
-          <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Source Référentiel</div>
-            <div className="text-xs bg-white border border-emerald-200 text-emerald-700 px-3 py-1 rounded-full font-bold">
-              {mappedClient.nom}
-            </div>
+          
+          <div className="grid grid-cols-2 gap-4 border-t border-emerald-200 pt-3">
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire Détecté</p>
+                <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block">
+                  <span className="font-mono font-black text-slate-700">{mappedClient.typeAffaire || 'Standard'}</span>
+                </div>
+             </div>
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire Webhook</p>
+                {isFetchingChantier ? (
+                   <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold animate-pulse">
+                     <i className="fas fa-circle-notch fa-spin"></i> Récupération...
+                   </div>
+                ) : chantierNumber ? (
+                  <div className="flex items-center gap-2">
+                     <span className="font-mono font-black text-slate-800 text-lg tracking-wide bg-white border border-emerald-300 px-2 rounded shadow-sm">
+                       {chantierNumber}
+                     </span>
+                     <i className="fas fa-check text-emerald-500"></i>
+                  </div>
+                ) : (
+                   <span className="text-[10px] text-emerald-500 italic">Non disponible</span>
+                )}
+             </div>
           </div>
         </div>
       ) : (
