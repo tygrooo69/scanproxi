@@ -185,6 +185,84 @@ app.get('/api/bootstrap', async (req, res) => {
   }
 });
 
+// --- CALENDAR PROXY (Proxy Nextcloud ICS) ---
+app.post('/api/calendar/events', requirePb, async (req, res) => {
+  try {
+    const { poseur_id } = req.body;
+    
+    // 1. Récupérer config Nextcloud et Poseur
+    const ncConfig = await pb.collection('nextcloud_config').getFirstListItem('');
+    const poseur = await pb.collection('poseurs').getOne(poseur_id);
+
+    if (!ncConfig || !poseur || !poseur.nextcloud_user) {
+      return res.status(400).json({ error: "Configuration manquante" });
+    }
+
+    // 2. Construire l'URL ICS (Export)
+    // URL Standard: remote.php/dav/calendars/USER/personal?export
+    const baseUrl = ncConfig.url.replace(/\/$/, '');
+    const icsUrl = `${baseUrl}/remote.php/dav/calendars/${poseur.nextcloud_user}/personal?export`;
+
+    // 3. Fetch ICS avec Basic Auth
+    const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');
+    
+    const response = await fetch(icsUrl, {
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur Nextcloud: ${response.status}`);
+    }
+
+    const icsData = await response.text();
+
+    // 4. Parser ICS (Parsing simplifié pour extraire les VEVENT)
+    // Note: Ceci est un parser basique pour la visualisation. 
+    // Il ne gère pas parfaitement les récurrences complexes (RRULE), mais suffit pour les événements simples.
+    const events = [];
+    const lines = icsData.split(/\r\n|\n|\r/);
+    let currentEvent = null;
+
+    const parseDate = (str) => {
+      if (!str) return null;
+      // Format: 20230101T120000Z ou 20230101
+      const match = str.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/);
+      if (!match) return null;
+      const d = new Date(Date.UTC(match[1], match[2]-1, match[3], match[4]||0, match[5]||0, match[6]||0));
+      return d.toISOString();
+    };
+
+    for (const line of lines) {
+      if (line.startsWith('BEGIN:VEVENT')) {
+        currentEvent = {};
+      } else if (line.startsWith('END:VEVENT')) {
+        if (currentEvent && currentEvent.start) {
+          events.push(currentEvent);
+        }
+        currentEvent = null;
+      } else if (currentEvent) {
+        if (line.startsWith('DTSTART')) currentEvent.start = parseDate(line.split(':')[1]);
+        if (line.startsWith('DTEND')) currentEvent.end = parseDate(line.split(':')[1]);
+        if (line.startsWith('SUMMARY')) currentEvent.title = line.split(':')[1];
+        if (line.startsWith('LOCATION')) currentEvent.location = line.split(':')[1];
+      }
+    }
+
+    // Filtrer les événements passés (optionnel, pour alléger)
+    const now = new Date();
+    now.setMonth(now.getMonth() - 1); // Garder 1 mois d'historique
+    const recentEvents = events.filter(e => e.start && new Date(e.start) > now);
+
+    res.json({ success: true, events: recentEvents });
+
+  } catch (err) {
+    console.error("Calendar Proxy Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- CRUD ---
 app.post('/api/clients', requirePb, async (req, res) => {
   try { res.json(await pb.collection('clients').create(req.body)); } 
