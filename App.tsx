@@ -21,6 +21,7 @@ const App: React.FC = () => {
   
   // Layout State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
   // Terminal Logs State (Shared)
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -318,6 +319,10 @@ const App: React.FC = () => {
       
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
+      // AUTO HIDE UI ELEMENTS ON SUCCESS
+      setIsSidebarOpen(false); 
+      setIsHeaderVisible(false);
+
       addLog('success', 'Extraction IA terminée avec succès.', { client: data.nom_client });
     } catch (err: any) {
       console.error("Analyse échouée:", err);
@@ -342,8 +347,9 @@ const App: React.FC = () => {
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
     clearLogs();
-    // Re-ouvrir la sidebar si on reset
+    // Re-ouvrir la sidebar et le header si on reset
     setIsSidebarOpen(true);
+    setIsHeaderVisible(true);
   };
 
   if (!isInitialized) {
@@ -358,14 +364,27 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden">
-      <Header currentView={currentView} onViewChange={handleViewChange} />
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden relative">
+      
+      {/* HEADER TOGGLE BUTTON (Visible only when header is hidden) */}
+      {!isHeaderVisible && (
+         <button 
+           onClick={() => setIsHeaderVisible(true)}
+           className="absolute top-2 right-4 z-50 bg-slate-800 text-slate-400 hover:text-white p-2 rounded-b-lg shadow-md text-xs font-bold transition-all opacity-50 hover:opacity-100"
+           title="Afficher le menu"
+         >
+           <i className="fas fa-chevron-down"></i> Menu
+         </button>
+      )}
+
+      {/* HEADER (Conditionally rendered) */}
+      {isHeaderVisible && <Header currentView={currentView} onViewChange={handleViewChange} />}
       
       {showAuthModal && (
         <AdminAuth onAuthenticated={handleAuthSuccess} onCancel={handleAuthCancel} />
       )}
 
-      <main className="flex-grow container mx-auto px-4 py-8 max-w-[98%]">
+      <main className={`flex-grow container mx-auto px-4 py-8 max-w-[98%] transition-all ${!isHeaderVisible ? 'pt-4' : ''}`}>
         <div className="mx-auto">
           {currentView === 'admin' && <AdminDashboard />}
           
@@ -395,9 +414,9 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* BOUTON TOGGLE (Si sidebar fermée) */}
+              {/* BOUTON TOGGLE Sidebar (Si sidebar fermée) */}
               {!isSidebarOpen && (
-                 <div className="absolute left-4 top-28 z-40">
+                 <div className="absolute left-4 top-24 z-40">
                     <button 
                         onClick={() => setIsSidebarOpen(true)}
                         className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
@@ -410,7 +429,7 @@ const App: React.FC = () => {
 
               {/* COLONNE DROITE : RESULTATS */}
               <div className="flex-grow flex flex-col gap-6 min-w-0">
-                {/* BOUTON TOGGLE (Si sidebar ouverte, pour desktop) */}
+                {/* BOUTON TOGGLE Sidebar Desktop */}
                 {isSidebarOpen && status === AppStatus.SUCCESS && (
                      <div className="hidden lg:flex justify-start">
                         <button 

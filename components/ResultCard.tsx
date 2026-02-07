@@ -48,7 +48,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
   const fields = [
     { key: "num_bon_travaux", label: "Numéro de Bon", icon: "fa-hashtag", color: "text-blue-600" },
     { key: "nom_client", label: "Nom Client (PDF)", icon: "fa-building", color: "text-indigo-600" },
-    { key: "date_intervention", label: "Date du Document (JJ/MM/AAAA)", icon: "fa-file-signature", color: "text-purple-600" },
+    { key: "date_intervention", label: "Date du Document", icon: "fa-file-signature", color: "text-purple-600" },
     { key: "delai_intervention", label: "Délai / RDV Agenda", icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
 
@@ -61,7 +61,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
         </h2>
         <button 
           onClick={onReset}
-          className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
         >
           Nouveau Scan
         </button>
@@ -85,12 +85,12 @@ const ResultCard: React.FC<ResultCardProps> = ({
               </div>
             </div>
 
-            {/* BOUTON ENREGISTREMENT (En haut à droite) */}
+            {/* BOUTON ENREGISTREMENT (AGRANDI) */}
             <div>
                <button 
                   disabled={isTransmitting}
                   onClick={onTransmit}
-                  className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-2 shadow-lg ${
+                  className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 ${
                     transmitStatus === 'success' ? 'bg-green-600 text-white' : 
                     transmitStatus === 'error' ? 'bg-red-600 text-white' :
                     'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-900/20'
@@ -101,26 +101,31 @@ const ResultCard: React.FC<ResultCardProps> = ({
                   ) : transmitStatus === 'success' ? (
                       <><i className="fas fa-check"></i> Transmis !</>
                   ) : (
-                      <><i className="fas fa-save"></i> Enregistrement</>
+                      <><i className="fas fa-save text-lg"></i> Enregistrement</>
                   )}
                 </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 border-t border-emerald-200 pt-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
+             {/* TYPE AFFAIRE */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire</p>
                 <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block">
                   <span className="font-mono font-black text-slate-700">{mappedClient.typeAffaire || 'Standard'}</span>
                 </div>
              </div>
+             
+             {/* CODE BPU */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
                 <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block min-w-[60px]">
                   <span className="font-mono font-black text-slate-700">{mappedClient.bpu || '-'}</span>
                 </div>
              </div>
-             <div className="md:col-span-1 col-span-2">
+             
+             {/* NUMERO AFFAIRE */}
+             <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire Webhook</p>
                 {isFetchingChantier ? (
                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold animate-pulse">
@@ -137,24 +142,25 @@ const ResultCard: React.FC<ResultCardProps> = ({
                    <span className="text-[10px] text-emerald-500 italic">Non disponible</span>
                 )}
              </div>
-          </div>
 
-          {/* LISTE DEROULANTE POSEUR (En bas à droite de l'encadré vert) */}
-          <div className="mt-4 pt-3 border-t border-emerald-200">
-             <div className="flex justify-end items-center gap-2">
-                 <label className="text-[10px] font-bold text-emerald-700 uppercase">Assignation Poseur :</label>
-                 <select
-                    value={selectedPoseurId}
-                    onChange={(e) => onPoseurSelect(e.target.value)}
-                    className="bg-white border border-emerald-300 text-slate-700 text-xs rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-emerald-500 outline-none w-48 font-bold"
-                 >
-                    <option value="">-- Non assigné --</option>
-                    {poseurs.map(p => (
-                    <option key={p.id} value={p.id}>
-                        {p.nom} {p.type ? `[${p.type}]` : ''}
-                    </option>
-                    ))}
-                </select>
+             {/* ASSIGNATION POSEUR (DÉPLACÉ ICI) */}
+             <div>
+                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Assignation Poseur</p>
+                 <div className="relative">
+                    <select
+                        value={selectedPoseurId}
+                        onChange={(e) => onPoseurSelect(e.target.value)}
+                        className="w-full font-bold text-slate-800 text-sm tracking-wide bg-white border border-emerald-300 px-2 py-1.5 rounded shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+                    >
+                        <option value="">-- Non assigné --</option>
+                        {poseurs.map(p => (
+                        <option key={p.id} value={p.id}>
+                            {p.nom} {p.type ? `[${p.type}]` : ''}
+                        </option>
+                        ))}
+                    </select>
+                    <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
+                 </div>
              </div>
           </div>
         </div>

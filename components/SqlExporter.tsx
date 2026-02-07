@@ -23,8 +23,6 @@ const SqlExporter: React.FC<SqlExporterProps> = ({
   onAddLog,
   onClearLogs
 }) => {
-  const [copied, setCopied] = useState(false);
-  
   const escapeSql = (str: string | null) => str ? str.replace(/'/g, "''").trim() : "";
   
   // Le chantierInput est initialisé avec prefilledChantierNumber s'il existe, sinon on prend le numéro du bon, sinon 000000
@@ -40,38 +38,8 @@ const SqlExporter: React.FC<SqlExporterProps> = ({
     }
   }, [prefilledChantierNumber, data.num_bon_travaux]);
 
-  const fullAddress = [data.adresse_1, data.adresse_2, data.adresse_3]
-    .filter(Boolean)
-    .join(' ');
-  const safeAddress = escapeSql(fullAddress);
-
-  const soc = "SAM";
-  const ets = "001";
-  const secteur = "80";
-  const phase = "0";
-  
-  const chantier = chantierInput;
-  const imputation = `${secteur}${chantier}${phase}`;
-  
-  const cpSource = data.adresse_3 || fullAddress;
-  const cpMatch = cpSource.match(/\d{5}/);
-  const codePostal = cpMatch ? cpMatch[0] : "";
-  
   const codeCliFour = mappedClient ? mappedClient.codeClient : "";
   const codeTrv = mappedClient?.typeAffaire || "O3-0";
-  const descTravaux = escapeSql(data.descriptif_travaux);
-
-  const contactFull = [data.gardien_nom, data.gardien_tel].filter(Boolean).join(' - ');
-
-  const sqlInsert = `INSERT INTO \`a_cht\` 
-(\`soc\`, \`ets\`, \`secteur\`, \`chantier\`, \`phase\`, \`imputation\`, \`libelle1\`, \`descriptif_tvx\`, \`descriptif_trvx2\`, \`code_postal\`, \`inter_cli\`, \`tel_cli\`, \`code_ouvert\`, \`code_raz_fin_exo\`, \`code_clifour\`, \`code_trv\`) 
-VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputation}', '${escapeSql(data.nom_client).substring(0, 40)}', '<p>Import BuildScan AI : ${descTravaux.substring(0, 500)}</p>', '${safeAddress.substring(0, 120)}', '${codePostal}', '${escapeSql(data.nom_client).substring(0, 40)}', '${escapeSql(contactFull).substring(0, 30)}', '4', 'N', '${codeCliFour}', '${codeTrv}');`;
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(sqlInsert);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -85,20 +53,11 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
               <h3 className="text-white font-bold uppercase tracking-wider text-xs">Terminal <span className="text-blue-400">SQL & Logs</span></h3>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={copyToClipboard}
-              className={`px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all flex items-center gap-2 ${copied ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'}`}
-            >
-              {copied ? 'SQL Copié' : 'Copier SQL'}
-            </button>
-          </div>
         </div>
         
         <div className="p-6">
           {/* Infos techniques compactes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={`p-3 rounded-lg border flex items-center justify-between transition-all ${mappedClient ? 'bg-emerald-900/20 border-emerald-800' : 'bg-amber-900/20 border-amber-800'}`}>
               <div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Code Client</p>
@@ -130,15 +89,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
                   className="bg-slate-900 border border-slate-600 text-white text-sm font-mono font-bold rounded px-2 py-1 w-full focus:outline-none focus:border-blue-500"
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="relative group">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Script SQL de secours</p>
-            <div className="max-h-32 overflow-y-auto rounded-lg border border-slate-800 bg-black/40 p-3">
-              <pre className="text-emerald-300 text-[10px] font-mono leading-relaxed whitespace-pre-wrap opacity-70 group-hover:opacity-100 transition-opacity">
-                {sqlInsert}
-              </pre>
             </div>
           </div>
         </div>
