@@ -14,7 +14,7 @@ Instructions d'extraction :
 - gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place. RÈGLE STRICTE : Ignore les emails commençant par "facture", "factures" ou "billing". Si aucune adresse valide n'est trouvée, renvoie une chaîne vide "".
 
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
-- delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la dernière date (la plus lointaine dans le temps).
+- delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la PREMIÈRE date (la plus proche dans le temps).
 - date_intervention : Date d'émission ou de création du document/bon (et non la date du rendez-vous).
 - descriptif_travaux : Résumé détaillé de la nature des travaux à effectuer (ex: "Remplacement de vitrage", "Réparation de serrure", "Recherche de fuite").
 
@@ -37,7 +37,7 @@ const RESPONSE_SCHEMA = {
     gardien_email: { type: Type.STRING, description: "Email du contact (Hors facturation) ou vide" },
 
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
-    delai_intervention: { type: Type.STRING, description: "Délai de validité (Dernière date)" },
+    delai_intervention: { type: Type.STRING, description: "Délai de validité (Première date)" },
     date_intervention: { type: Type.STRING, description: "Date du document" },
     descriptif_travaux: { type: Type.STRING, description: "Détails des travaux à réaliser" },
   },

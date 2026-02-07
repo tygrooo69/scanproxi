@@ -297,6 +297,16 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
        return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     };
 
+    // Fonction pour échapper les caractères spéciaux iCal (RFC 5545)
+    const escapeIcal = (str) => {
+        if (!str) return '';
+        return str
+            .replace(/\\/g, '\\\\') // Échapper les backslashes d'abord
+            .replace(/;/g, '\\;')
+            .replace(/,/g, '\\,')
+            .replace(/\r?\n/g, '\\n'); // Remplacer les sauts de ligne par \n littéral
+    };
+
     const now = formatDate(new Date().toISOString());
     const start = formatDate(event.start);
     const end = formatDate(event.end);
@@ -310,9 +320,9 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
       `DTSTAMP:${now}`,
       `DTSTART:${start}`,
       `DTEND:${end}`,
-      `SUMMARY:${event.title || 'Nouvel Événement'}`,
-      `DESCRIPTION:${event.description || ''}`,
-      `LOCATION:${event.location || ''}`,
+      `SUMMARY:${escapeIcal(event.title || 'Nouvel Événement')}`,
+      `DESCRIPTION:${escapeIcal(event.description || '')}`,
+      `LOCATION:${escapeIcal(event.location || '')}`,
       'END:VEVENT',
       'END:VCALENDAR'
     ].join('\r\n');
