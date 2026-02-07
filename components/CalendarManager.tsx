@@ -62,27 +62,31 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
         body: JSON.stringify({ poseur_id: selectedPoseurId })
       });
       
-      if (!res.ok) throw new Error("Erreur Serveur");
-      
-      const result = await res.json();
-      if (result.success) {
-        setEvents(result.events);
-        
-        // Affichage de l'URL dans le terminal comme demandé
-        if (result.debugUrl) {
-            onAddLog('info', `[Nextcloud DEBUG] URL ICS Interrogée : ${result.debugUrl}`);
-        }
-
-        onAddLog('response', `Nextcloud: ${result.events.length} événements synchronisés.`, { 
-            poseur: selectedPoseur.nom, 
-            events_count: result.events.length 
-        });
-      } else {
-        throw new Error(result.error);
+      let result;
+      try {
+        result = await res.json();
+      } catch (e) {
+        throw new Error(`Erreur critique: Réponse serveur invalide (${res.status})`);
       }
+      
+      // Affichage de l'URL dans le terminal MEME en cas d'erreur
+      if (result.debugUrl) {
+          onAddLog('info', `[Nextcloud DEBUG] URL ICS : ${result.debugUrl}`);
+      }
+      
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || "Erreur serveur inconnue");
+      }
+      
+      setEvents(result.events);
+      onAddLog('response', `Nextcloud: ${result.events.length} événements synchronisés.`, { 
+          poseur: selectedPoseur.nom, 
+          events_count: result.events.length 
+      });
+
     } catch (e: any) {
       console.error("Erreur Fetch Calendar:", e);
-      setFetchError("Impossible de récupérer l'agenda.");
+      setFetchError(e.message || "Impossible de récupérer l'agenda.");
       onAddLog('error', `Erreur Nextcloud CalDAV: ${e.message}`);
     } finally {
       setIsLoading(false);

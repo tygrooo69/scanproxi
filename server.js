@@ -187,6 +187,7 @@ app.get('/api/bootstrap', async (req, res) => {
 
 // --- CALENDAR PROXY (Proxy Nextcloud ICS) ---
 app.post('/api/calendar/events', requirePb, async (req, res) => {
+  let icsUrl = "Non générée (Erreur config)";
   try {
     const { poseur_id } = req.body;
     
@@ -201,7 +202,7 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
     // 2. Construire l'URL ICS (Export)
     // URL Standard: remote.php/dav/calendars/USER/personal?export
     const baseUrl = ncConfig.url.replace(/\/$/, '');
-    const icsUrl = `${baseUrl}/remote.php/dav/calendars/${poseur.nextcloud_user}/personal?export`;
+    icsUrl = `${baseUrl}/remote.php/dav/calendars/${poseur.nextcloud_user}/personal?export`;
 
     // 3. Fetch ICS avec Basic Auth
     const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');
@@ -213,14 +214,16 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Erreur Nextcloud: ${response.status}`);
+      // On retourne l'URL même en cas d'erreur HTTP pour debug
+      return res.status(response.status).json({ 
+          error: `Nextcloud HTTP ${response.status}: ${response.statusText}`, 
+          debugUrl: icsUrl 
+      });
     }
 
     const icsData = await response.text();
 
     // 4. Parser ICS (Parsing simplifié pour extraire les VEVENT)
-    // Note: Ceci est un parser basique pour la visualisation. 
-    // Il ne gère pas parfaitement les récurrences complexes (RRULE), mais suffit pour les événements simples.
     const events = [];
     const lines = icsData.split(/\r\n|\n|\r/);
     let currentEvent = null;
@@ -259,7 +262,8 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
 
   } catch (err) {
     console.error("Calendar Proxy Error:", err);
-    res.status(500).json({ error: err.message });
+    // On retourne l'URL même en cas d'exception (timeout, dns, etc)
+    res.status(500).json({ error: err.message, debugUrl: icsUrl });
   }
 });
 
