@@ -134,6 +134,8 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     
     // Ajout BPU Client
     formData.append('client_bpu', mappedClient?.bpu || '');
+    // Ajout Nom Client Fiche (Référentiel)
+    formData.append('client_nom', mappedClient?.nom || '');
 
     formData.append('num_chantier', chantier);
     formData.append('imputation', imputation);
@@ -141,7 +143,7 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     formData.append('timestamp', new Date().toISOString());
 
     formData.append('num_bon_travaux', data.num_bon_travaux || '');
-    formData.append('nom_client', data.nom_client || '');
+    formData.append('nom_client', data.nom_client || ''); // Nom extrait du PDF
     
     formData.append('adresse_1', data.adresse_1 || '');
     formData.append('adresse_2', data.adresse_2 || '');
@@ -152,7 +154,8 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     formData.append('gardien_nom', data.gardien_nom || '');
     formData.append('gardien_tel', data.gardien_tel || '');
     formData.append('gardien_email', data.gardien_email || '');
-    // Champ legacy pour compatibilité éventuelle
+    
+    // Champ legacy pour compatibilité
     formData.append('coord_gardien', contactFull);
     
     formData.append('delai_intervention', data.delai_intervention || '');
@@ -171,9 +174,11 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
 
     addLog('request', `Envoi Multipart/FormData vers n8n...`, {
       codeClient: codeCliFour,
+      client_nom: mappedClient?.nom,
       bpu: mappedClient?.bpu,
-      contact: contactFull,
-      email_contact: data.gardien_email,
+      contact_nom: data.gardien_nom,
+      contact_tel: data.gardien_tel,
+      contact_email: data.gardien_email,
       imputation: imputation,
       num_chantier: chantier,
       poseur: selectedPoseur?.nom || 'Non assigné'
