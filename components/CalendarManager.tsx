@@ -56,9 +56,12 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     if (!dateStr) return new Date();
     const parts = dateStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
     if (parts) {
-      return new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]), 8, 0, 0);
+      // On initialise à 8h30 par défaut
+      return new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]), 8, 30, 0);
     }
-    return new Date();
+    const d = new Date();
+    d.setHours(8, 30, 0, 0);
+    return d;
   }, [data.delai_intervention, data.date_intervention]);
 
   // Récupération des événements via le Proxy Server
@@ -181,15 +184,61 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     
     // Ajouter le chantier actuel comme événement "Tentative" s'il n'existe pas déjà
     if (data.nom_client) {
-      const start = jobDate;
-      const end = new Date(start);
-      end.setHours(start.getHours() + 4);
+      
+      // 1. Calcul des dates et recherche de créneau (Algorithme Tetris)
+      let tentativeStart = new Date(jobDate);
+      // Force à 8h30 si l'heure n'est pas définie correctement ou si c'est le début de recherche
+      tentativeStart.setHours(8, 30, 0, 0);
 
-      // Construction du titre : Client - Bon - Affaire
+      const DURATION_MINUTES = 120; // 2 heures
+      const MAX_START_HOUR = 15;
+      const MAX_START_MINUTE = 30;
+
+      // Filtrer les événements du même jour
+      const dayEvents = list.filter(e => {
+        const evtDate = new Date(e.start);
+        return evtDate.toDateString() === tentativeStart.toDateString();
+      }).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+      // Boucle pour trouver le premier créneau libre de 2h
+      let isSlotFound = false;
+      
+      while (!isSlotFound) {
+         const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
+         
+         // Vérifier si on dépasse 17h30 (donc si start > 15h30)
+         if (tentativeStart.getHours() > MAX_START_HOUR || (tentativeStart.getHours() === MAX_START_HOUR && tentativeStart.getMinutes() > MAX_START_MINUTE)) {
+            // Si la journée est pleine, on arrête de chercher et on laisse à la fin (ou on pourrait passer au lendemain)
+            // Ici, on laisse la dernière valeur calculée (fin du dernier rdv), l'utilisateur avisera.
+            break; 
+         }
+
+         // Vérifier les collisions
+         const collision = dayEvents.find(e => {
+            const eStart = new Date(e.start).getTime();
+            const eEnd = new Date(e.end).getTime();
+            const tStart = tentativeStart.getTime();
+            const tEnd = tentativeEnd.getTime();
+            // Chevauchement : (StartA < EndB) et (EndA > StartB)
+            return (tStart < eEnd && tEnd > eStart);
+         });
+
+         if (collision) {
+            // Si collision, on se place juste après la fin de l'événement gênant
+            tentativeStart = new Date(collision.end);
+         } else {
+            // Pas de collision, c'est bon !
+            isSlotFound = true;
+         }
+      }
+
+      const tentativeEnd = new Date(tentativeStart.getTime() + DURATION_MINUTES * 60000);
+
+      // 2. Construction du titre : Bon - Affaire - Client
       const titleParts = [
-        data.nom_client,
         data.num_bon_travaux ? `${data.num_bon_travaux}` : null,
-        chantierNumber ? `${chantierNumber}` : null
+        chantierNumber ? `${chantierNumber}` : null,
+        data.nom_client
       ].filter(Boolean);
 
       const title = titleParts.join(' - ');
@@ -198,8 +247,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
       list.push({
         uid: 'tentative-preview',
         title: title,
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: tentativeStart.toISOString(),
+        end: tentativeEnd.toISOString(),
         location: `${data.adresse_1} ${data.adresse_3}`,
         description: `Client: ${data.nom_client}\nTel: ${data.gardien_tel || 'N/A'}\n${data.descriptif_travaux}`,
         isTentative: true

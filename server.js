@@ -21,7 +21,7 @@ let pb = null;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Augmentation limite pour gros PDF
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- GESTION CONFIGURATION POCKETBASE ---
@@ -312,21 +312,20 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
             .replace(/\r?\n/g, '\\n'); // Remplacer les sauts de ligne par \n littéral
     };
 
-    // Helper pour folder les lignes longues (notamment le base64) à 75 caractères
+    // Helper pour folder les lignes conformes RFC 5545 (impératif pour les pièces jointes base64)
     const foldLine = (line) => {
-        const MAX_LENGTH = 75;
-        if (line.length <= MAX_LENGTH) return line;
+        if (line.length <= 75) return line;
+        let chunks = [];
+        // Première ligne : 75 caractères
+        chunks.push(line.substring(0, 75));
+        let remaining = line.substring(75);
         
-        let result = '';
-        let currentPos = 0;
-        
-        while (currentPos < line.length) {
-            let chunk = line.substr(currentPos, MAX_LENGTH);
-            result += chunk + '\r\n '; // Espace requis au début de la ligne suivante
-            currentPos += MAX_LENGTH;
+        // Lignes suivantes : Espace + 74 caractères
+        while (remaining.length > 0) {
+            chunks.push(' ' + remaining.substring(0, 74));
+            remaining = remaining.substring(74);
         }
-        
-        return result.trimEnd(); // Retirer le dernier CRLF + Espace inutile
+        return chunks.join('\r\n');
     };
 
     const now = formatDate(new Date().toISOString());
@@ -349,10 +348,14 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
 
     // Ajout de la pièce jointe PDF si présente
     if (file && file.data) {
-        // En iCal, l'attachement binaire est inline.
-        // ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:MIICajCCAdOgAwIBAgICBEIwDQYJKoZIhvcNAQEEBQAw...
         const cleanBase64 = file.data.replace(/\s/g, '');
-        vCalendarBody.push(`ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:${cleanBase64}`);
+        // On sécurise le nom de fichier
+        const safeFileName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'document.pdf';
+        // Ajout du paramètre X-FILENAME pour Nextcloud
+        const attachLine = `ATTACH;FMTTYPE=application/pdf;X-FILENAME=${safeFileName};ENCODING=BASE64;VALUE=BINARY:${cleanBase64}`;
+        
+        // IMPORTANT: On applique le folding ici
+        vCalendarBody.push(foldLine(attachLine));
     }
 
     vCalendarBody.push('END:VEVENT');
@@ -368,7 +371,6 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
       headers: {
         'Authorization': `Basic ${auth}`,
         'Content-Type': 'text/calendar; charset=utf-8'
-        // 'If-None-Match': '*' -> Retiré pour autoriser l'update (écrasement)
       },
       body: vCalendarData
     });
