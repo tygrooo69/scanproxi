@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PocketBase from 'pocketbase';
-import { fetchStorageConfig, updateConfig, getDbConfig, updateDbConfig, DbConfig } from '../services/configService';
+import { fetchStorageConfig, updateConfig, getDbConfig, updateDbConfig, updateNextcloudConfig, DbConfig } from '../services/configService';
 
 const AdminSettings: React.FC = () => {
   // Webhook State
@@ -8,6 +8,13 @@ const AdminSettings: React.FC = () => {
   const [clientWebhookUrl, setClientWebhookUrl] = useState("");
   const [webhookSaving, setWebhookSaving] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Nextcloud State
+  const [ncUrl, setNcUrl] = useState("");
+  const [ncUser, setNcUser] = useState("");
+  const [ncPass, setNcPass] = useState("");
+  const [ncSaving, setNcSaving] = useState(false);
+  const [ncStatus, setNcStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // DB State
   const [dbConfig, setDbConfig] = useState<DbConfig>({ url: '', email: '', password: '' });
@@ -29,11 +36,16 @@ const AdminSettings: React.FC = () => {
   }, []);
 
   const loadConfigs = async () => {
-    // Charger Webhooks (depuis DB)
+    // Charger Webhooks & Nextcloud (depuis DB)
     const storeConfig = await fetchStorageConfig();
     if (storeConfig) {
       setWebhookUrl(storeConfig.webhook_url || "");
       setClientWebhookUrl(storeConfig.client_webhook_url || "");
+      if (storeConfig.nextcloud) {
+        setNcUrl(storeConfig.nextcloud.url || "");
+        setNcUser(storeConfig.nextcloud.username || "");
+        setNcPass(storeConfig.nextcloud.password || "");
+      }
     }
 
     // Charger DB Config (depuis Serveur Local)
@@ -112,6 +124,26 @@ const AdminSettings: React.FC = () => {
     setWebhookSaving(false);
   };
 
+  const handleSaveNextcloud = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNcSaving(true);
+    setNcStatus('idle');
+
+    const success = await updateNextcloudConfig({
+      url: ncUrl,
+      username: ncUser,
+      password: ncPass
+    });
+
+    if (success) {
+      setNcStatus('success');
+      setTimeout(() => setNcStatus('idle'), 3000);
+    } else {
+      setNcStatus('error');
+    }
+    setNcSaving(false);
+  };
+
   const handleSaveDb = async (e: React.FormEvent) => {
     e.preventDefault();
     setDbSaving(true);
@@ -128,12 +160,8 @@ const AdminSettings: React.FC = () => {
       setDbStatus('success');
       setDbMessage(result.message || 'Connexion réussie');
       setDbConfig(prev => ({ ...prev, password: '', hasPassword: true })); // Reset champ password
-      // Recharger le webhook car la DB a pu changer
-      const storeConfig = await fetchStorageConfig();
-      if (storeConfig) {
-        setWebhookUrl(storeConfig.webhook_url || "");
-        setClientWebhookUrl(storeConfig.client_webhook_url || "");
-      }
+      // Recharger les configs car la DB a pu changer
+      loadConfigs();
     } else {
       setDbStatus('error');
       setDbMessage(result.message || 'Erreur de connexion');
@@ -157,7 +185,6 @@ const AdminSettings: React.FC = () => {
             </div>
           </div>
           
-          {/* Section STATUT Temps Réel (Résultat du dernier test) */}
           <div className={`px-4 py-2 rounded-lg border flex items-center gap-3 ${testResult?.success ? 'bg-emerald-50 border-emerald-200' : testResult?.success === false ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
             <div className={`w-3 h-3 rounded-full ${testResult?.success ? 'bg-emerald-500 animate-pulse' : testResult?.success === false ? 'bg-red-500' : 'bg-slate-300'}`}></div>
             <div>
@@ -215,33 +242,6 @@ const AdminSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* Zone de feedback Test */}
-          {testResult && (
-            <div className={`mt-4 p-4 rounded-lg border ${testResult.success ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'} animate-in slide-in-from-top-2`}>
-              <div className="flex items-start gap-3">
-                <i className={`fas ${testResult.success ? 'fa-check-circle text-emerald-500' : 'fa-times-circle text-red-500'} mt-1`}></i>
-                <div className="w-full overflow-hidden">
-                  <h4 className={`font-bold text-sm ${testResult.success ? 'text-emerald-800' : 'text-red-800'}`}>
-                    {testResult.success ? 'Connexion réussie !' : 'Échec de la connexion'}
-                  </h4>
-                  <p className={`text-xs mt-1 ${testResult.success ? 'text-emerald-600' : 'text-red-600'}`}>{testResult.message}</p>
-                  
-                  {testResult.success && testResult.jwt && (
-                    <div className="mt-3 bg-white/50 p-2 rounded border border-emerald-200/50">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-[9px] font-bold text-emerald-700 uppercase">Token Admin (JWT)</span>
-                        <span className="text-[9px] font-bold text-emerald-700 uppercase">{testResult.collections} Collections trouvées</span>
-                      </div>
-                      <code className="block font-mono text-[10px] text-emerald-600 break-all select-all">
-                        {testResult.jwt.substring(0, 50)}...{testResult.jwt.substring(testResult.jwt.length - 10)}
-                      </code>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
             <button
               type="button"
@@ -278,10 +278,92 @@ const AdminSettings: React.FC = () => {
         </form>
       </div>
 
+      {/* SECTION NEXTCLOUD (NOUVEAU) */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 relative overflow-hidden">
+         {(!dbConfig.url) && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
+            <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-lg text-slate-500 font-bold text-sm flex items-center gap-2">
+              <i className="fas fa-lock text-slate-400"></i>
+              Connectez la Base de Données pour configurer Nextcloud
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+          <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+            <i className="fas fa-cloud"></i>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Connexion Calendrier Nextcloud</h2>
+            <p className="text-slate-500 text-xs">Configuration CalDAV pour l'accès aux agendas poseurs</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveNextcloud} className="space-y-5">
+           <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL Serveur Nextcloud</label>
+            <div className="relative">
+                <i className="fas fa-link absolute left-3 top-3.5 text-slate-400"></i>
+                <input 
+                type="url" 
+                required
+                className="w-full pl-10 p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-sky-500 outline-none font-mono text-sm bg-slate-50"
+                value={ncUrl}
+                onChange={e => setNcUrl(e.target.value)}
+                placeholder="https://cloud.monentreprise.fr"
+                />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+             <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Utilisateur (Compte Technique)</label>
+                <div className="relative">
+                  <i className="fas fa-user absolute left-3 top-3.5 text-slate-400"></i>
+                  <input 
+                    type="text" required
+                    className="w-full pl-10 p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-sky-500 outline-none text-sm bg-slate-50"
+                    value={ncUser}
+                    onChange={e => setNcUser(e.target.value)}
+                  />
+                </div>
+              </div>
+               <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Mot de Passe</label>
+                <div className="relative">
+                  <i className="fas fa-key absolute left-3 top-3.5 text-slate-400"></i>
+                  <input 
+                    type="password"
+                    className="w-full pl-10 p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-sky-500 outline-none text-sm bg-slate-50"
+                    value={ncPass}
+                    onChange={e => setNcPass(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-2">
+              {ncStatus === 'success' && <span className="text-emerald-600 text-xs font-bold"><i className="fas fa-check-circle"></i> Enregistré</span>}
+              {ncStatus === 'error' && <span className="text-red-600 text-xs font-bold"><i className="fas fa-times-circle"></i> Erreur</span>}
+            </div>
+            <button 
+              type="submit" 
+              disabled={ncSaving}
+              className={`px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm ${
+                ncSaving ? 'bg-slate-300 text-slate-500' : 'bg-sky-600 text-white hover:bg-sky-700 shadow-sky-200'
+              }`}
+            >
+              {ncSaving ? '...' : 'Enregistrer Nextcloud'}
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* SECTION WEBHOOKS */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 relative overflow-hidden">
-        {/* Overlay si DB non connectée */}
-        {(!dbConfig.url || (testResult?.success === false && !dbConfig.hasPassword)) && (
+        {(!dbConfig.url) && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
             <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-lg text-slate-500 font-bold text-sm flex items-center gap-2">
               <i className="fas fa-lock text-slate-400"></i>
@@ -328,7 +410,6 @@ const AdminSettings: React.FC = () => {
                 placeholder="https://n8n.example.com/webhook/get-case-number"
                 />
             </div>
-            <p className="text-[10px] text-slate-500 italic">Ce webhook est appelé pour générer un nouveau numéro de chantier basé sur le Type Affaire.</p>
           </div>
 
           <div className="flex items-center justify-between">

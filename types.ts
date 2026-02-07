@@ -22,6 +22,7 @@ export interface Poseur {
   specialite: string;
   codeSalarie: string;
   type?: string; // Lien avec le Type Affaire du client
+  nextcloud_user?: string; // Identifiant utilisateur Nextcloud
 }
 
 export interface Client {
@@ -30,6 +31,12 @@ export interface Client {
   codeClient: string; // ex: 411DRA038
   typeAffaire: string; // ex: O3-0
   bpu?: string; // Code BPU
+}
+
+export interface NextcloudConfig {
+  url: string;
+  username: string;
+  password?: string;
 }
 
 export interface LogEntry {

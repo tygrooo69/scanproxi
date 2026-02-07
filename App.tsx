@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppStatus, ConstructionOrderData, AppView, Client } from './types';
+import { AppStatus, ConstructionOrderData, AppView, Client, Poseur } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
 import { fetchStorageConfig } from './services/configService';
 import Header from './components/Header';
 import FileUploader from './components/FileUploader';
 import ResultCard from './components/ResultCard';
 import SqlExporter from './components/SqlExporter';
+import CalendarManager from './components/CalendarManager';
 import AdminDashboard from './components/AdminDashboard';
 import AdminAuth from './components/AdminAuth';
 
@@ -22,6 +23,10 @@ const App: React.FC = () => {
   const [mappedClient, setMappedClient] = useState<Client | null>(null);
   const [autoChantierNumber, setAutoChantierNumber] = useState<string | null>(null);
   const [isFetchingChantier, setIsFetchingChantier] = useState(false);
+  
+  // Calendar & Poseur sync state
+  const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
+  const [allPoseurs, setAllPoseurs] = useState<Poseur[]>([]);
   
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -155,6 +160,12 @@ const App: React.FC = () => {
       setExtractedData({ ...extractedData, ...updates });
     }
   };
+  
+  // Callback pour synchroniser le poseur sélectionné dans SqlExporter avec CalendarManager
+  const handlePoseurSelect = (id: string, poseurs: Poseur[]) => {
+      setSelectedPoseurId(id);
+      setAllPoseurs(poseurs);
+  };
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf') {
@@ -204,6 +215,7 @@ const App: React.FC = () => {
     setAutoChantierNumber(null);
     setError(null);
     setOriginalFile(null);
+    setSelectedPoseurId("");
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
   };
@@ -227,23 +239,25 @@ const App: React.FC = () => {
         <AdminAuth onAuthenticated={handleAuthSuccess} onCancel={handleAuthCancel} />
       )}
 
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-grow container mx-auto px-4 py-8 max-w-[95%]">
+        <div className="mx-auto">
           {currentView === 'admin' && <AdminDashboard />}
           
           {currentView === 'analyzer' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-5 space-y-6">
+              
+              {/* COLONNE GAUCHE : UPLOAD */}
+              <div className="lg:col-span-3 space-y-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                   <h2 className="text-xl font-black mb-4 flex items-center gap-2 uppercase tracking-tight">
                     <i className="fas fa-file-pdf text-blue-600"></i>
-                    Document Source
+                    Scan PDF
                   </h2>
                   <FileUploader onFileSelect={handleFileSelect} disabled={status === AppStatus.ANALYZING} />
                   
                   {filePreviewUrl && (
                     <div className="mt-6 animate-in fade-in zoom-in-95 duration-300">
-                      <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Aperçu du scan</p>
+                      <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Aperçu</p>
                       <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner">
                         <iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none" />
                       </div>
@@ -252,14 +266,15 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="lg:col-span-7 space-y-6">
+              {/* COLONNE DROITE : RESULTATS */}
+              <div className="lg:col-span-9 space-y-6">
                 {status === AppStatus.IDLE && (
                   <div className="bg-blue-600 rounded-2xl p-10 text-center text-white shadow-xl shadow-blue-900/20">
                     <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
                       <i className="fas fa-robot text-4xl"></i>
                     </div>
                     <h3 className="text-2xl font-black mb-2 uppercase tracking-tight">Analyseur BuildScan</h3>
-                    <p className="text-blue-100 font-medium">Glissez un PDF pour extraire les données chantiers vers l'ERP.</p>
+                    <p className="text-blue-100 font-medium">Glissez un PDF pour extraire les données chantiers vers l'ERP et l'Agenda.</p>
                   </div>
                 )}
 
@@ -289,6 +304,7 @@ const App: React.FC = () => {
 
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
+                    {/* RESULTAT PRINCIPAL */}
                     <ResultCard 
                       data={extractedData} 
                       onReset={reset} 
@@ -297,12 +313,26 @@ const App: React.FC = () => {
                       isFetchingChantier={isFetchingChantier}
                       onUpdate={handleDataUpdate}
                     />
-                    <SqlExporter 
-                      data={extractedData} 
-                      originalFile={originalFile || undefined} 
-                      mappedClient={mappedClient}
-                      prefilledChantierNumber={autoChantierNumber}
-                    />
+                    
+                    {/* EXPORT ET CALENDRIER CÔTE À CÔTE */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+                        <div className="h-full">
+                             <SqlExporter 
+                              data={extractedData} 
+                              originalFile={originalFile || undefined} 
+                              mappedClient={mappedClient}
+                              prefilledChantierNumber={autoChantierNumber}
+                              onPoseurSelect={handlePoseurSelect}
+                            />
+                        </div>
+                        <div className="h-full">
+                            <CalendarManager 
+                                poseurs={allPoseurs}
+                                selectedPoseurId={selectedPoseurId}
+                                data={extractedData}
+                            />
+                        </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -312,7 +342,7 @@ const App: React.FC = () => {
       </main>
       <footer className="bg-white border-t border-slate-200 py-6">
         <div className="container mx-auto px-4 text-center">
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.5 • PocketBase Ed.</span>
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">BuildScan AI v2.6 • Nextcloud Ed.</span>
         </div>
       </footer>
     </div>

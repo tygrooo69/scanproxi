@@ -7,9 +7,11 @@ interface SqlExporterProps {
   originalFile?: File;
   mappedClient: Client | null;
   prefilledChantierNumber: string | null;
+  // Callback pour remonter la sélection au parent (pour le calendrier)
+  onPoseurSelect?: (poseurId: string, poseurs: Poseur[]) => void;
 }
 
-const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedClient, prefilledChantierNumber }) => {
+const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedClient, prefilledChantierNumber, onPoseurSelect }) => {
   const [copied, setCopied] = useState(false);
   const [transmitting, setTransmitting] = useState(false);
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -76,6 +78,13 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedCli
       }
     }
   }, [mappedClient?.typeAffaire, poseurs, addLog]);
+
+  // Propagation au parent quand la sélection change ou que les poseurs sont chargés
+  useEffect(() => {
+    if (onPoseurSelect) {
+      onPoseurSelect(selectedPoseurId, poseurs);
+    }
+  }, [selectedPoseurId, poseurs, onPoseurSelect]);
 
   const selectedPoseur = useMemo(() => 
     poseurs.find(p => p.id === selectedPoseurId), 
@@ -207,8 +216,8 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800">
+    <div className="space-y-6 h-full flex flex-col">
+      <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800 flex-shrink-0">
         <div className="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-500/20 text-blue-400 rounded flex items-center justify-center">
@@ -321,7 +330,9 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
         </div>
       </div>
 
-      <Terminal logs={logs} onClear={clearLogs} />
+      <div className="flex-grow">
+        <Terminal logs={logs} onClear={clearLogs} />
+      </div>
     </div>
   );
 };

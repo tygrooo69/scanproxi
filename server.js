@@ -133,20 +133,29 @@ app.get('/api/bootstrap', async (req, res) => {
     }
 
     // Récupération parallèle
-    const [clientsReq, poseursReq, configList] = await Promise.all([
+    const [clientsReq, poseursReq, configList, nextcloudReq] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
-      pb.collection('config').getFullList().catch(() => [])
+      pb.collection('config').getFullList().catch(() => []),
+      pb.collection('nextcloud_config').getFirstListItem('').catch(() => null)
     ]);
 
     // Mapping des configurations par type (0 = Export, 1 = Client)
-    // Note: Le champ type est défini comme 'text' dans le schéma
     const exportConfig = configList.find(c => c.type === "0");
     const clientConfig = configList.find(c => c.type === "1");
 
     // On utilise le champ 'webhook_url' défini dans le schéma
     const finalWebhookUrl = exportConfig?.webhook_url || ENV_WEBHOOK_URL || "http://default-webhook.com";
     const finalClientWebhookUrl = clientConfig?.webhook_url || "";
+    
+    let nextcloudConfig = undefined;
+    if (nextcloudReq) {
+      nextcloudConfig = {
+        url: nextcloudReq.url,
+        username: nextcloudReq.username,
+        password: nextcloudReq.password // Attention: En prod, éviter d'exposer le mot de passe si non nécessaire au front
+      };
+    }
 
     res.json({
       webhook_url: finalWebhookUrl,
@@ -156,7 +165,7 @@ app.get('/api/bootstrap', async (req, res) => {
         nom: c.nom, 
         codeClient: c.codeClient, 
         typeAffaire: c.typeAffaire,
-        bpu: c.bpu // Ajout du champ BPU
+        bpu: c.bpu
       })),
       poseurs: poseursReq.map(p => ({ 
         id: p.id, 
@@ -165,8 +174,10 @@ app.get('/api/bootstrap', async (req, res) => {
         telephone: p.telephone, 
         specialite: p.specialite, 
         codeSalarie: p.codeSalarie,
-        type: p.type // Ajout du champ type
-      }))
+        type: p.type,
+        nextcloud_user: p.nextcloud_user
+      })),
+      nextcloud: nextcloudConfig
     });
   } catch (error) {
     console.error('Erreur Bootstrap:', error);
@@ -203,6 +214,29 @@ app.put('/api/poseurs/:id', requirePb, async (req, res) => {
 app.delete('/api/poseurs/:id', requirePb, async (req, res) => {
   try { await pb.collection('poseurs').delete(req.params.id); res.json({ success: true }); } 
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- NEXTCLOUD CONFIG ---
+app.post('/api/config/nextcloud', requirePb, async (req, res) => {
+  try {
+    const { url, username, password } = req.body;
+    let record;
+    try {
+      record = await pb.collection('nextcloud_config').getFirstListItem('');
+      // Update
+      record = await pb.collection('nextcloud_config').update(record.id, { url, username, password });
+    } catch (e) {
+      if (e.status === 404) {
+        // Create
+        record = await pb.collection('nextcloud_config').create({ url, username, password });
+      } else {
+        throw e;
+      }
+    }
+    res.json({ success: true, data: record });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/config', requirePb, async (req, res) => {

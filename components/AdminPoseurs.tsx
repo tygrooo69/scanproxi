@@ -9,7 +9,7 @@ const AdminPoseurs: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  const initialForm = { nom: '', entreprise: '', telephone: '', specialite: '', codeSalarie: '', type: '' };
+  const initialForm = { nom: '', entreprise: '', telephone: '', specialite: '', codeSalarie: '', type: '', nextcloud_user: '' };
   const [newPoseur, setNewPoseur] = useState<Omit<Poseur, 'id'>>(initialForm);
   const [editForm, setEditForm] = useState<Omit<Poseur, 'id'>>(initialForm);
 
@@ -64,7 +64,8 @@ const AdminPoseurs: React.FC = () => {
       telephone: p.telephone, 
       specialite: p.specialite, 
       codeSalarie: p.codeSalarie,
-      type: p.type || '' 
+      type: p.type || '',
+      nextcloud_user: p.nextcloud_user || ''
     });
   };
 
@@ -100,6 +101,11 @@ const AdminPoseurs: React.FC = () => {
                ))}
              </select>
           </div>
+          
+           <div className="col-span-2">
+             <label className="text-[10px] font-bold text-slate-400 uppercase">Utilisateur Nextcloud (Pour Calendrier)</label>
+             <input placeholder="ex: jean.dupont" className="w-full p-2 border rounded mt-1" value={newPoseur.nextcloud_user} onChange={e => setNewPoseur({...newPoseur, nextcloud_user: e.target.value})} />
+          </div>
 
           <button type="submit" disabled={isSaving} className="col-span-2 bg-emerald-600 text-white py-2 rounded font-bold">Ajouter</button>
         </form>
@@ -126,7 +132,9 @@ const AdminPoseurs: React.FC = () => {
                      <option key={type} value={type}>{type}</option>
                    ))}
                  </select>
-                 
+
+                <input className="border p-2 rounded text-sm md:col-span-2" value={editForm.nextcloud_user} onChange={e => setEditForm({...editForm, nextcloud_user: e.target.value})} placeholder="User Nextcloud" />
+
                 <div className="md:col-span-3 flex gap-2 justify-end mt-2">
                     <button onClick={() => handleUpdate(p.id)} className="bg-emerald-500 text-white px-4 py-1.5 rounded text-sm font-bold">Enregistrer</button>
                     <button onClick={() => setEditingId(null)} className="bg-slate-400 text-white px-4 py-1.5 rounded text-sm font-bold">Annuler</button>
@@ -153,6 +161,12 @@ const AdminPoseurs: React.FC = () => {
                         <>
                             <span>•</span>
                             <span className="font-mono text-slate-400 font-bold">{p.codeSalarie}</span>
+                        </>
+                    )}
+                    {p.nextcloud_user && (
+                         <>
+                            <span>•</span>
+                            <span className="text-sky-600 font-bold"><i className="fas fa-cloud"></i> {p.nextcloud_user}</span>
                         </>
                     )}
                   </div>

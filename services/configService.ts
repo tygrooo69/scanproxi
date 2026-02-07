@@ -1,10 +1,11 @@
-import { Client, Poseur } from '../types';
+import { Client, Poseur, NextcloudConfig } from '../types';
 
 export interface StorageConfig {
   webhook_url: string;
   client_webhook_url?: string;
   clients: Client[];
   poseurs: Poseur[];
+  nextcloud?: NextcloudConfig;
 }
 
 export interface DbConfig {
@@ -39,6 +40,10 @@ export async function fetchStorageConfig(): Promise<StorageConfig | null> {
     if (config.client_webhook_url) {
       localStorage.setItem('buildscan_client_webhook_url', config.client_webhook_url);
     }
+    if (config.nextcloud) {
+      localStorage.setItem('buildscan_nextcloud', JSON.stringify(config.nextcloud));
+    }
+
     localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
     localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
     localStorage.setItem('buildscan_data_source', 'server');
@@ -52,13 +57,15 @@ export async function fetchStorageConfig(): Promise<StorageConfig | null> {
     const cachedClientWebhook = localStorage.getItem('buildscan_client_webhook_url');
     const cachedClients = localStorage.getItem('buildscan_clients');
     const cachedPoseurs = localStorage.getItem('buildscan_poseurs');
+    const cachedNextcloud = localStorage.getItem('buildscan_nextcloud');
 
     if (cachedWebhook || cachedClients) {
       const offlineConfig: StorageConfig = {
         webhook_url: cachedWebhook || "",
         client_webhook_url: cachedClientWebhook || "",
         clients: cachedClients ? JSON.parse(cachedClients) : [],
-        poseurs: cachedPoseurs ? JSON.parse(cachedPoseurs) : []
+        poseurs: cachedPoseurs ? JSON.parse(cachedPoseurs) : [],
+        nextcloud: cachedNextcloud ? JSON.parse(cachedNextcloud) : undefined
       };
       
       localStorage.setItem('buildscan_data_source', 'local_cache');
@@ -151,6 +158,21 @@ export async function updatePoseur(id: string, poseur: Partial<Poseur>): Promise
 export async function deletePoseur(id: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/poseurs/${id}`, { method: 'DELETE' });
+    return res.ok;
+  } catch (e) { return false; }
+}
+
+// --- NEXTCLOUD CONFIG ---
+export async function updateNextcloudConfig(config: NextcloudConfig): Promise<boolean> {
+  try {
+    const res = await fetch('/api/config/nextcloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    if (res.ok) {
+       localStorage.setItem('buildscan_nextcloud', JSON.stringify(config));
+    }
     return res.ok;
   } catch (e) { return false; }
 }
