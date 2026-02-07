@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ConstructionOrderData, Client, LogEntry } from '../types';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ConstructionOrderData, Client, LogEntry, Poseur } from '../types';
 import Terminal from './Terminal';
 
 interface SqlExporterProps {
@@ -12,6 +12,10 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const [transmitting, setTransmitting] = useState(false);
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  
+  // Poseurs State
+  const [poseurs, setPoseurs] = useState<Poseur[]>([]);
+  const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
 
   // State for editable case number
   const escapeSql = (str: string | null) => str ? str.replace(/'/g, "''").trim() : "";
@@ -22,7 +26,8 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
 
   const DEFAULT_WEBHOOK_URL = "http://194.116.0.110:5678/webhook-test/857f9b11-6d28-4377-a63b-c431ff3fc324";
 
-  const addLog = (type: LogEntry['type'], message: string, data?: any) => {
+  // Memoization de addLog pour l'utiliser dans les useEffect
+  const addLog = useCallback((type: LogEntry['type'], message: string, data?: any) => {
     const newLog: LogEntry = {
       id: crypto.randomUUID(),
       timestamp: new Date().toLocaleTimeString(),
@@ -31,14 +36,20 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
       data
     };
     setLogs(prev => [...prev, newLog]);
-  };
+  }, []);
 
   const clearLogs = () => setLogs([]);
 
   useEffect(() => {
     addLog('info', `Système prêt. Module de transmission binaire activé.`);
     addLog('info', `En attente d'envoi vers n8n via Multipart FormData.`);
-  }, []);
+    
+    // Charger les poseurs
+    const savedPoseurs = localStorage.getItem('buildscan_poseurs');
+    if (savedPoseurs) {
+      setPoseurs(JSON.parse(savedPoseurs));
+    }
+  }, [addLog]);
 
   const mappedClient = useMemo(() => {
     if (!data.nom_client) return null;
@@ -57,6 +68,27 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
       return null;
     }
   }, [data.nom_client]);
+
+  // Présélection intelligente et AUTOMATIQUE du poseur
+  // Se déclenche à chaque fois que le Type Affaire du client change (nouvelle analyse ou mapping)
+  useEffect(() => {
+    if (mappedClient?.typeAffaire && poseurs.length > 0) {
+      // On cherche un poseur qui a le même 'type' que le 'typeAffaire' du client
+      const match = poseurs.find(p => p.type === mappedClient.typeAffaire);
+      
+      if (match) {
+        setSelectedPoseurId(match.id);
+        addLog('info', `Poseur assigné automatiquement : ${match.nom}`, {
+          type_match: match.type,
+          client_type: mappedClient.typeAffaire
+        });
+      }
+    }
+  }, [mappedClient?.typeAffaire, poseurs, addLog]);
+
+  const selectedPoseur = useMemo(() => 
+    poseurs.find(p => p.id === selectedPoseurId), 
+  [poseurs, selectedPoseurId]);
 
   const fullAddress = [data.adresse_1, data.adresse_2, data.adresse_3]
     .filter(Boolean)
@@ -80,9 +112,12 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile }) => {
   const codeTrv = mappedClient?.typeAffaire || "O3-0";
   const descTravaux = escapeSql(data.descriptif_travaux);
 
+  // Ajout du poseur dans le commentaire SQL si sélectionné
+  const poseurComment = selectedPoseur ? ` | Poseur: ${selectedPoseur.nom}` : "";
+
   const sqlInsert = `INSERT INTO \`a_cht\` 
 (\`soc\`, \`ets\`, \`secteur\`, \`chantier\`, \`phase\`, \`imputation\`, \`libelle1\`, \`descriptif_tvx\`, \`descriptif_trvx2\`, \`code_postal\`, \`inter_cli\`, \`tel_cli\`, \`code_ouvert\`, \`code_raz_fin_exo\`, \`code_clifour\`, \`code_trv\`) 
-VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputation}', '${escapeSql(data.nom_client).substring(0, 40)}', '<p>Import BuildScan AI : ${descTravaux.substring(0, 500)}</p>', '${safeAddress.substring(0, 120)}', '${codePostal}', '${escapeSql(data.nom_client).substring(0, 40)}', '${escapeSql(data.coord_gardien).substring(0, 30)}', '4', 'N', '${codeCliFour}', '${codeTrv}');`;
+VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputation}', '${escapeSql(data.nom_client).substring(0, 40)}', '<p>Import BuildScan AI : ${descTravaux.substring(0, 500)}${poseurComment}</p>', '${safeAddress.substring(0, 120)}', '${codePostal}', '${escapeSql(data.nom_client).substring(0, 40)}', '${escapeSql(data.coord_gardien).substring(0, 30)}', '4', 'N', '${codeCliFour}', '${codeTrv}');`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(sqlInsert);
@@ -121,7 +156,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       const result = await response.json();
       addLog('response', `Réponse Webhook reçue`, result);
       
-      // Adaptation selon format de réponse (flexible)
       let newNumber = "";
       if (result.numero_affaire) newNumber = result.numero_affaire;
       else if (result.next_id) newNumber = result.next_id;
@@ -130,7 +164,6 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
       else if (typeof result === 'number') newNumber = String(result);
       
       if (newNumber) {
-        // Nettoyage pour ne garder que les 6 derniers chiffres si c'est un format long
         const cleanNumber = String(newNumber).replace(/\D/g, '');
         const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
         
@@ -160,8 +193,8 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     
     formData.append('codeClient', codeCliFour);
     formData.append('code_trv', codeTrv);
-    formData.append('num_chantier', chantier); // Uses state value
-    formData.append('imputation', imputation); // Uses state value (via dependency)
+    formData.append('num_chantier', chantier);
+    formData.append('imputation', imputation);
     formData.append('source', "BuildScan AI");
     formData.append('timestamp', new Date().toISOString());
 
@@ -180,10 +213,20 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     
     formData.append('libelle', data.nom_client || '');
 
+    // Ajout des données Poseur
+    if (selectedPoseur) {
+      formData.append('poseur_id', selectedPoseur.id);
+      formData.append('poseur_nom', selectedPoseur.nom);
+      formData.append('poseur_code', selectedPoseur.codeSalarie || '');
+      // On envoie aussi le type pour information
+      formData.append('poseur_type', selectedPoseur.type || '');
+    }
+
     addLog('request', `Envoi Multipart/FormData vers n8n...`, {
       codeClient: codeCliFour,
       imputation: imputation,
-      num_chantier: chantier
+      num_chantier: chantier,
+      poseur: selectedPoseur?.nom || 'Non assigné'
     });
 
     try {
@@ -246,6 +289,37 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
         </div>
         
         <div className="p-6">
+          {/* Sélection du Poseur */}
+          <div className="mb-6">
+            <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 flex items-center justify-between">
+              <span><i className="fas fa-user-hard-hat mr-2"></i>Assignation Poseur</span>
+              {selectedPoseur && mappedClient?.typeAffaire && selectedPoseur.type === mappedClient.typeAffaire && (
+                <span className="text-emerald-500"><i className="fas fa-magic mr-1"></i>Auto-sélectionné</span>
+              )}
+            </label>
+            <div className="relative">
+              <select
+                value={selectedPoseurId}
+                onChange={(e) => setSelectedPoseurId(e.target.value)}
+                className={`w-full bg-slate-800 border text-white text-sm rounded-lg p-3 appearance-none focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${
+                    selectedPoseur && mappedClient?.typeAffaire && selectedPoseur.type === mappedClient.typeAffaire 
+                    ? 'border-emerald-600/50 ring-1 ring-emerald-900' 
+                    : 'border-slate-700'
+                }`}
+              >
+                <option value="">-- Sélectionner un poseur --</option>
+                {poseurs.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.nom} {p.type ? `[Type: ${p.type}]` : ''} - {p.entreprise}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                <i className="fas fa-chevron-down text-xs"></i>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className={`p-3 rounded-lg border flex items-center justify-between transition-all ${mappedClient ? 'bg-emerald-900/20 border-emerald-800' : 'bg-amber-900/20 border-amber-800'}`}>
               <div>

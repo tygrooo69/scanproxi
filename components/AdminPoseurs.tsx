@@ -109,11 +109,15 @@ const AdminPoseurs: React.FC = () => {
         {poseurs.map(p => (
           <div key={p.id} className="p-4 border-b last:border-0 flex flex-col md:flex-row md:items-center justify-between hover:bg-slate-50 gap-4">
             {editingId === p.id ? (
-              <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input className="border p-1 rounded" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} placeholder="Nom" />
-                <input className="border p-1 rounded" value={editForm.entreprise} onChange={e => setEditForm({...editForm, entreprise: e.target.value})} placeholder="Entreprise" />
+              <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded border border-slate-200">
+                <input className="border p-2 rounded text-sm" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} placeholder="Nom" />
+                <input className="border p-2 rounded text-sm" value={editForm.entreprise} onChange={e => setEditForm({...editForm, entreprise: e.target.value})} placeholder="Entreprise" />
+                <input className="border p-2 rounded text-sm" value={editForm.telephone} onChange={e => setEditForm({...editForm, telephone: e.target.value})} placeholder="Téléphone" />
+                <input className="border p-2 rounded text-sm" value={editForm.specialite} onChange={e => setEditForm({...editForm, specialite: e.target.value})} placeholder="Spécialité" />
+                <input className="border p-2 rounded text-sm" value={editForm.codeSalarie} onChange={e => setEditForm({...editForm, codeSalarie: e.target.value})} placeholder="Code Salarié" />
+                
                 <select 
-                   className="border p-1 rounded"
+                   className="border p-2 rounded text-sm"
                    value={editForm.type} 
                    onChange={e => setEditForm({...editForm, type: e.target.value})}
                  >
@@ -124,8 +128,8 @@ const AdminPoseurs: React.FC = () => {
                  </select>
                  
                 <div className="md:col-span-3 flex gap-2 justify-end mt-2">
-                    <button onClick={() => handleUpdate(p.id)} className="bg-emerald-500 text-white px-3 py-1 rounded">Enregistrer</button>
-                    <button onClick={() => setEditingId(null)} className="bg-slate-400 text-white px-3 py-1 rounded">Annuler</button>
+                    <button onClick={() => handleUpdate(p.id)} className="bg-emerald-500 text-white px-4 py-1.5 rounded text-sm font-bold">Enregistrer</button>
+                    <button onClick={() => setEditingId(null)} className="bg-slate-400 text-white px-4 py-1.5 rounded text-sm font-bold">Annuler</button>
                 </div>
               </div>
             ) : (
@@ -139,14 +143,16 @@ const AdminPoseurs: React.FC = () => {
                        </span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
-                    <span className="bg-slate-100 px-1.5 rounded">{p.entreprise}</span>
+                  <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2 mt-1">
+                    <span className="bg-slate-100 px-1.5 rounded border border-slate-200">{p.entreprise}</span>
                     <span>•</span>
                     <span>{p.telephone}</span>
+                    <span>•</span>
+                    <span>{p.specialite}</span>
                     {p.codeSalarie && (
                         <>
                             <span>•</span>
-                            <span className="font-mono text-slate-400">{p.codeSalarie}</span>
+                            <span className="font-mono text-slate-400 font-bold">{p.codeSalarie}</span>
                         </>
                     )}
                   </div>
