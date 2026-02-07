@@ -67,6 +67,12 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ poseurs, selectedPose
       const result = await res.json();
       if (result.success) {
         setEvents(result.events);
+        
+        // Affichage de l'URL dans le terminal comme demandé
+        if (result.debugUrl) {
+            onAddLog('info', `[Nextcloud DEBUG] URL ICS Interrogée : ${result.debugUrl}`);
+        }
+
         onAddLog('response', `Nextcloud: ${result.events.length} événements synchronisés.`, { 
             poseur: selectedPoseur.nom, 
             events_count: result.events.length 

@@ -255,7 +255,7 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
     now.setMonth(now.getMonth() - 1); // Garder 1 mois d'historique
     const recentEvents = events.filter(e => e.start && new Date(e.start) > now);
 
-    res.json({ success: true, events: recentEvents });
+    res.json({ success: true, events: recentEvents, debugUrl: icsUrl });
 
   } catch (err) {
     console.error("Calendar Proxy Error:", err);
