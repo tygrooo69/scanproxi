@@ -284,7 +284,12 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
       return res.status(400).json({ error: "Configuration manquante" });
     }
 
-    const uid = event.uid || randomUUID();
+    // Gestion de l'UID : Génération si absent ou si c'est le placeholder frontend "tentative-preview"
+    let uid = event.uid;
+    if (!uid || uid === 'tentative-preview') {
+      uid = randomUUID();
+    }
+
     const fileName = `${uid}.ics`;
     const baseUrl = ncConfig.url.replace(/\/$/, '');
     
@@ -346,12 +351,6 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
     if (file && file.data) {
         // En iCal, l'attachement binaire est inline.
         // ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:MIICajCCAdOgAwIBAgICBEIwDQYJKoZIhvcNAQEEBQAw...
-        
-        // Note: Pour éviter de casser le parser avec une ligne géante, on ne fold pas ici manuellement
-        // car la plupart des serveurs modernes (y compris Nextcloud/Sabre) gèrent les lignes longues,
-        // ou alors il faut un folding très strict.
-        
-        // On retire les retours à la ligne éventuels dans le base64 reçu
         const cleanBase64 = file.data.replace(/\s/g, '');
         vCalendarBody.push(`ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY:${cleanBase64}`);
     }
@@ -368,8 +367,8 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
       method: 'PUT',
       headers: {
         'Authorization': `Basic ${auth}`,
-        'Content-Type': 'text/calendar; charset=utf-8',
-        'If-None-Match': '*' // Optionnel, pour éviter d'écraser aveuglément si nécessaire
+        'Content-Type': 'text/calendar; charset=utf-8'
+        // 'If-None-Match': '*' -> Retiré pour autoriser l'update (écrasement)
       },
       body: vCalendarData
     });
