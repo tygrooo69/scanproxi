@@ -8,7 +8,11 @@ Instructions d'extraction :
 - adresse_1 : Ligne 1 de l'adresse (Voie, Numéro). Maximum 40 caractères.
 - adresse_2 : Ligne 2 de l'adresse (Complément, Bâtiment, Résidence). Maximum 40 caractères.
 - adresse_3 : Ligne 3 de l'adresse (Code Postal, Ville). Maximum 40 caractères.
-- coord_gardien : Extrait UNIQUEMENT le Nom, Prénom et Numéro de téléphone. Supprime tout texte superflu comme "Gardien:", "M.", "Mme", "Loge", etc.
+
+- gardien_nom : Extrait UNIQUEMENT le Nom et Prénom du gardien ou du contact sur place. (Ex: "M. Dupont", "Sophie Martin").
+- gardien_tel : Extrait UNIQUEMENT le numéro de téléphone du gardien ou contact. (Ex: "06 12 34 56 78").
+- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place si présente. (Ex: "gardien@example.com").
+
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
 - delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la dernière date (la plus lointaine dans le temps).
 - date_intervention : Date d'émission ou de création du document/bon (et non la date du rendez-vous).
@@ -27,13 +31,17 @@ const RESPONSE_SCHEMA = {
     adresse_1: { type: Type.STRING, description: "Adresse Ligne 1 (Voie) - Max 40 chars" },
     adresse_2: { type: Type.STRING, description: "Adresse Ligne 2 (Complément) - Max 40 chars" },
     adresse_3: { type: Type.STRING, description: "Adresse Ligne 3 (CP Ville) - Max 40 chars" },
-    coord_gardien: { type: Type.STRING, description: "Nom Prénom Tel uniquement" },
+    
+    gardien_nom: { type: Type.STRING, description: "Nom et Prénom du contact" },
+    gardien_tel: { type: Type.STRING, description: "Téléphone du contact" },
+    gardien_email: { type: Type.STRING, description: "Email du contact si présent" },
+
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
     delai_intervention: { type: Type.STRING, description: "Délai de validité (Dernière date)" },
     date_intervention: { type: Type.STRING, description: "Date du document" },
     descriptif_travaux: { type: Type.STRING, description: "Détails des travaux à réaliser" },
   },
-  required: ["num_bon_travaux", "adresse_1", "adresse_3", "coord_gardien", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
+  required: ["num_bon_travaux", "adresse_1", "adresse_3", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
 };
 
 export async function analyzeConstructionDocument(base64Data: string, mimeType: string): Promise<ConstructionOrderData> {

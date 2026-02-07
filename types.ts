@@ -3,7 +3,11 @@ export interface ConstructionOrderData {
   adresse_1: string | null;
   adresse_2: string | null;
   adresse_3: string | null;
-  coord_gardien: string | null;
+  // Separation des données gardien
+  gardien_nom: string | null;
+  gardien_tel: string | null;
+  gardien_email: string | null; // Ajout email
+  
   nom_client: string | null;
   delai_intervention: string | null;
   date_intervention: string | null;
@@ -25,6 +29,7 @@ export interface Client {
   nom: string; // Nom tel qu'il apparaît sur les PDF
   codeClient: string; // ex: 411DRA038
   typeAffaire: string; // ex: O3-0
+  bpu?: string; // Code BPU
 }
 
 export interface LogEntry {

@@ -13,7 +13,6 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, ch
   const fields = [
     { label: "Numéro de Bon", value: data.num_bon_travaux, icon: "fa-hashtag", color: "text-blue-600" },
     { label: "Nom Client (PDF)", value: data.nom_client, icon: "fa-building", color: "text-indigo-600" },
-    { label: "Contact / Gardien", value: data.coord_gardien, icon: "fa-user-tie", color: "text-emerald-600" },
     { label: "Date du Document", value: data.date_intervention, icon: "fa-file-signature", color: "text-purple-600" },
     { label: "Délai d'intervention", value: data.delai_intervention, icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
@@ -57,14 +56,20 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, ch
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 border-t border-emerald-200 pt-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 border-t border-emerald-200 pt-3">
              <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire Détecté</p>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire</p>
                 <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block">
                   <span className="font-mono font-black text-slate-700">{mappedClient.typeAffaire || 'Standard'}</span>
                 </div>
              </div>
              <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
+                <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block min-w-[60px]">
+                  <span className="font-mono font-black text-slate-700">{mappedClient.bpu || '-'}</span>
+                </div>
+             </div>
+             <div className="md:col-span-1 col-span-2">
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire Webhook</p>
                 {isFetchingChantier ? (
                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold animate-pulse">
@@ -127,7 +132,31 @@ const ResultCard: React.FC<ResultCardProps> = ({ data, onReset, mappedClient, ch
           </div>
         </div>
 
-        {/* Autres champs */}
+        {/* Informations Gardien */}
+        <div className="space-y-1 md:col-span-2">
+           <div className="flex items-center gap-2 mb-1">
+              <i className="fas fa-user-tie text-emerald-600 w-4"></i>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact / Gardien</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                   <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Nom</span>
+                   <span className="font-medium text-slate-900 truncate">{data.gardien_nom || '-'}</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                   <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Téléphone</span>
+                   <span className="font-medium text-slate-900 truncate">{data.gardien_tel || '-'}</span>
+                   {data.gardien_tel && <i className="fas fa-phone absolute right-3 top-3 text-emerald-100"></i>}
+                </div>
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden">
+                   <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Email</span>
+                   <span className="font-medium text-slate-900 truncate" title={data.gardien_email || ''}>{data.gardien_email || '-'}</span>
+                   {data.gardien_email && <i className="fas fa-envelope absolute right-3 top-3 text-blue-100"></i>}
+                </div>
+            </div>
+        </div>
+
+        {/* Autres champs standards */}
         {fields.map((field, idx) => (
           <div key={idx} className="space-y-1">
             <div className="flex items-center gap-2 mb-1">

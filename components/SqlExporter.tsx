@@ -104,10 +104,13 @@ const SqlExporter: React.FC<SqlExporterProps> = ({ data, originalFile, mappedCli
   const descTravaux = escapeSql(data.descriptif_travaux);
 
   const poseurComment = selectedPoseur ? ` | Poseur: ${selectedPoseur.nom}` : "";
+  
+  // Reconstitution d'une chaîne contact pour le SQL (rétro-compatibilité)
+  const contactFull = [data.gardien_nom, data.gardien_tel].filter(Boolean).join(' - ');
 
   const sqlInsert = `INSERT INTO \`a_cht\` 
 (\`soc\`, \`ets\`, \`secteur\`, \`chantier\`, \`phase\`, \`imputation\`, \`libelle1\`, \`descriptif_tvx\`, \`descriptif_trvx2\`, \`code_postal\`, \`inter_cli\`, \`tel_cli\`, \`code_ouvert\`, \`code_raz_fin_exo\`, \`code_clifour\`, \`code_trv\`) 
-VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputation}', '${escapeSql(data.nom_client).substring(0, 40)}', '<p>Import BuildScan AI : ${descTravaux.substring(0, 500)}${poseurComment}</p>', '${safeAddress.substring(0, 120)}', '${codePostal}', '${escapeSql(data.nom_client).substring(0, 40)}', '${escapeSql(data.coord_gardien).substring(0, 30)}', '4', 'N', '${codeCliFour}', '${codeTrv}');`;
+VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputation}', '${escapeSql(data.nom_client).substring(0, 40)}', '<p>Import BuildScan AI : ${descTravaux.substring(0, 500)}${poseurComment}</p>', '${safeAddress.substring(0, 120)}', '${codePostal}', '${escapeSql(data.nom_client).substring(0, 40)}', '${escapeSql(contactFull).substring(0, 30)}', '4', 'N', '${codeCliFour}', '${codeTrv}');`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(sqlInsert);
@@ -128,6 +131,10 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     
     formData.append('codeClient', codeCliFour);
     formData.append('code_trv', codeTrv);
+    
+    // Ajout BPU Client
+    formData.append('client_bpu', mappedClient?.bpu || '');
+
     formData.append('num_chantier', chantier);
     formData.append('imputation', imputation);
     formData.append('source', "BuildScan AI");
@@ -141,7 +148,13 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
     formData.append('adresse_3', data.adresse_3 || '');
     formData.append('adresse_intervention', fullAddress);
 
-    formData.append('coord_gardien', data.coord_gardien || '');
+    // Envoi des champs gardien séparés
+    formData.append('gardien_nom', data.gardien_nom || '');
+    formData.append('gardien_tel', data.gardien_tel || '');
+    formData.append('gardien_email', data.gardien_email || '');
+    // Champ legacy pour compatibilité éventuelle
+    formData.append('coord_gardien', contactFull);
+    
     formData.append('delai_intervention', data.delai_intervention || '');
     formData.append('date_intervention', data.date_intervention || '');
     formData.append('descriptif_travaux', data.descriptif_travaux || '');
@@ -158,6 +171,9 @@ VALUES ('${soc}', '${ets}', '${secteur}', '${chantier}', '${phase}', '${imputati
 
     addLog('request', `Envoi Multipart/FormData vers n8n...`, {
       codeClient: codeCliFour,
+      bpu: mappedClient?.bpu,
+      contact: contactFull,
+      email_contact: data.gardien_email,
       imputation: imputation,
       num_chantier: chantier,
       poseur: selectedPoseur?.nom || 'Non assigné'

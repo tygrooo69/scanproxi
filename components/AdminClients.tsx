@@ -7,8 +7,8 @@ const AdminClients: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newClient, setNewClient] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '' });
-  const [editForm, setEditForm] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '' });
+  const [newClient, setNewClient] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
+  const [editForm, setEditForm] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
 
   const reloadClients = async () => {
     const config = await fetchStorageConfig();
@@ -23,7 +23,7 @@ const AdminClients: React.FC = () => {
     setIsSaving(true);
     const result = await addClient(newClient);
     if (result) {
-      setNewClient({ nom: '', codeClient: '', typeAffaire: '' });
+      setNewClient({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
       setIsAdding(false);
       await reloadClients();
     } else {
@@ -54,7 +54,7 @@ const AdminClients: React.FC = () => {
 
   const startEditing = (client: Client) => {
     setEditingId(client.id);
-    setEditForm({ nom: client.nom, codeClient: client.codeClient, typeAffaire: client.typeAffaire });
+    setEditForm({ nom: client.nom, codeClient: client.codeClient, typeAffaire: client.typeAffaire, bpu: client.bpu || '' });
   };
 
   return (
@@ -77,11 +77,12 @@ const AdminClients: React.FC = () => {
       </div>
 
       {isAdding && (
-        <form onSubmit={handleAdd} className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 gap-5 animate-in slide-in-from-top-4">
+        <form onSubmit={handleAdd} className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-4 gap-5 animate-in slide-in-from-top-4">
           <input type="text" required placeholder="Nom (PDF)" className="w-full p-2.5 border rounded-xl" value={newClient.nom} onChange={e => setNewClient({...newClient, nom: e.target.value})} />
           <input type="text" required placeholder="Code ERP" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.codeClient} onChange={e => setNewClient({...newClient, codeClient: e.target.value})} />
           <input type="text" placeholder="Type Affaire" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.typeAffaire} onChange={e => setNewClient({...newClient, typeAffaire: e.target.value})} />
-          <button type="submit" disabled={isSaving} className="md:col-span-3 bg-emerald-600 text-white py-3 rounded-xl font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg transition-all">
+          <input type="text" placeholder="Code BPU" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.bpu} onChange={e => setNewClient({...newClient, bpu: e.target.value})} />
+          <button type="submit" disabled={isSaving} className="md:col-span-4 bg-emerald-600 text-white py-3 rounded-xl font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg transition-all">
             {isSaving ? 'Enregistrement...' : 'Créer dans PocketBase'}
           </button>
         </form>
@@ -94,6 +95,7 @@ const AdminClients: React.FC = () => {
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Nom PDF</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Code ERP</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Type</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">BPU</th>
               <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Actions</th>
             </tr>
           </thead>
@@ -108,6 +110,9 @@ const AdminClients: React.FC = () => {
                 </td>
                 <td className="px-6 py-4">
                   {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.typeAffaire} onChange={e => setEditForm({...editForm, typeAffaire: e.target.value})} /> : c.typeAffaire}
+                </td>
+                <td className="px-6 py-4">
+                  {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.bpu} onChange={e => setEditForm({...editForm, bpu: e.target.value})} /> : <span className="font-mono text-slate-500">{c.bpu || '-'}</span>}
                 </td>
                 <td className="px-6 py-4 text-right flex justify-end gap-2">
                   {editingId === c.id ? (

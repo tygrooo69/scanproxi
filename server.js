@@ -151,7 +151,13 @@ app.get('/api/bootstrap', async (req, res) => {
     res.json({
       webhook_url: finalWebhookUrl,
       client_webhook_url: finalClientWebhookUrl,
-      clients: clientsReq.map(c => ({ id: c.id, nom: c.nom, codeClient: c.codeClient, typeAffaire: c.typeAffaire })),
+      clients: clientsReq.map(c => ({ 
+        id: c.id, 
+        nom: c.nom, 
+        codeClient: c.codeClient, 
+        typeAffaire: c.typeAffaire,
+        bpu: c.bpu // Ajout du champ BPU
+      })),
       poseurs: poseursReq.map(p => ({ 
         id: p.id, 
         nom: p.nom, 
