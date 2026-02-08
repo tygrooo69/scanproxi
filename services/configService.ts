@@ -15,6 +15,13 @@ export interface DbConfig {
   hasPassword?: boolean;
 }
 
+export interface WikiPage {
+  id: string;
+  slug: string;
+  content: string;
+  updated: string;
+}
+
 // Fallback uniquement si le serveur est inaccessible et le cache vide
 const DEFAULT_CONFIG: StorageConfig = {
   webhook_url: "",
@@ -191,6 +198,26 @@ export async function updateConfig(config: Partial<StorageConfig>): Promise<bool
     }
     return res.ok;
   } catch (e) { return false; }
+}
+
+// --- WIKI SERVICE ---
+export async function getWiki(slug: string): Promise<WikiPage | null> {
+  try {
+    const res = await fetch(`/api/wiki/${slug}`);
+    if (res.ok) return await res.json();
+    return null;
+  } catch(e) { return null; }
+}
+
+export async function saveWiki(slug: string, content: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/wiki', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, content })
+    });
+    return res.ok;
+  } catch(e) { return false; }
 }
 
 // Deprecated: kept for backward compatibility if needed, but redirects to updateConfig

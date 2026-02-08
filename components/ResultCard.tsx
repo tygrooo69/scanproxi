@@ -37,11 +37,25 @@ const ResultCard: React.FC<ResultCardProps> = ({
     onUpdate({ [field]: value });
   };
 
-  // Effect pour reformater la date du document en JJ/MM/AAAA si elle est en format YYYY-MM-DD
+  // Effect pour reformater la date du document en JJ/MM/AAAA
   useEffect(() => {
-    if (data.date_intervention && data.date_intervention.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const [year, month, day] = data.date_intervention.split('-');
-        onUpdate({ date_intervention: `${day}/${month}/${year}` });
+    if (data.date_intervention) {
+        let formattedDate = data.date_intervention;
+        
+        // Cas 1: YYYY-MM-DD -> JJ/MM/AAAA
+        if (formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [year, month, day] = formattedDate.split('-');
+            formattedDate = `${day}/${month}/${year}`;
+        }
+        // Cas 2: JJ-MM-AAAA -> JJ/MM/AAAA (Remplace tirets par slashs)
+        else if (formattedDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
+            formattedDate = formattedDate.replace(/-/g, '/');
+        }
+
+        // Mise à jour si le format a changé
+        if (formattedDate !== data.date_intervention) {
+            onUpdate({ date_intervention: formattedDate });
+        }
     }
   }, [data.date_intervention]);
 

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import AdminClients from './AdminClients';
 import AdminPoseurs from './AdminPoseurs';
 import AdminSettings from './AdminSettings';
+import AdminWiki from './AdminWiki';
 
-type AdminTab = 'clients' | 'poseurs' | 'settings';
+type AdminTab = 'clients' | 'poseurs' | 'settings' | 'wiki';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('clients');
@@ -12,6 +13,7 @@ const AdminDashboard: React.FC = () => {
     { id: 'clients', label: 'Référentiel Clients', icon: 'fa-building', desc: 'Codes ERP & Mappings' },
     { id: 'poseurs', label: 'Gestion Flotte', icon: 'fa-users-cog', desc: 'Poseurs & Sous-traitants' },
     { id: 'settings', label: 'Paramètres', icon: 'fa-sliders-h', desc: 'Base de données & Webhook' },
+    { id: 'wiki', label: 'Aide et Fonctionnalité', icon: 'fa-book', desc: 'Wiki & Documentation' },
   ];
 
   return (
@@ -64,6 +66,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'clients' && <AdminClients />}
           {activeTab === 'poseurs' && <AdminPoseurs />}
           {activeTab === 'settings' && <AdminSettings />}
+          {activeTab === 'wiki' && <AdminWiki />}
         </div>
       </div>
     </div>

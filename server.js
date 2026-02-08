@@ -186,6 +186,38 @@ app.get('/api/bootstrap', async (req, res) => {
   }
 });
 
+// --- WIKI API ---
+app.get('/api/wiki/:slug', requirePb, async (req, res) => {
+  try {
+    const record = await pb.collection('wiki').getFirstListItem(`slug="${req.params.slug}"`);
+    res.json(record);
+  } catch (e) {
+    // Si non trouvé
+    res.status(404).json({ error: 'Page non trouvée' });
+  }
+});
+
+app.post('/api/wiki', requirePb, async (req, res) => {
+  try {
+    const { slug, content } = req.body;
+    let record;
+    try {
+      record = await pb.collection('wiki').getFirstListItem(`slug="${slug}"`);
+      await pb.collection('wiki').update(record.id, { content });
+    } catch (e) {
+      if (e.status === 404) {
+        await pb.collection('wiki').create({ slug, content });
+      } else {
+        throw e;
+      }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Erreur Wiki Save:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- CALENDAR PROXY (Proxy Nextcloud ICS) ---
 app.post('/api/calendar/events', requirePb, async (req, res) => {
   let icsUrl = "Non générée (Erreur config)";
