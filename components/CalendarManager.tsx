@@ -234,11 +234,32 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     return list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [events, data, jobDate, chantierNumber]); // Dependancies
 
-  // Update du délai d'intervention si tentative change
+  // Update du délai d'intervention (Synchro inverse Agenda -> Extraction)
   useEffect(() => {
-      const tentative = displayEvents.find(e => e.isTentative);
-      if (tentative && onUpdate && data.nom_client) {
-          const startDate = new Date(tentative.start);
+      if (!onUpdate || !data.nom_client) return;
+
+      let targetEvent: CalendarEvent | undefined;
+
+      // 1. Priorité : Événement déjà enregistré (Confirmé)
+      if (data.num_bon_travaux) {
+          const cleanBon = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
+          if (cleanBon.length > 3) {
+             targetEvent = displayEvents.find(e => {
+                if (e.isTentative) return false;
+                const t = (e.title || '').replace(/[^a-zA-Z0-9]/g, '');
+                const d = (e.description || '').replace(/[^a-zA-Z0-9]/g, '');
+                return t.includes(cleanBon) || d.includes(cleanBon);
+             });
+          }
+      }
+
+      // 2. Fallback : Événement Tentative
+      if (!targetEvent) {
+          targetEvent = displayEvents.find(e => e.isTentative);
+      }
+
+      if (targetEvent) {
+          const startDate = new Date(targetEvent.start);
           const day = String(startDate.getDate()).padStart(2, '0');
           const month = String(startDate.getMonth() + 1).padStart(2, '0');
           const year = startDate.getFullYear();
@@ -251,7 +272,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
               onUpdate({ delai_intervention: formattedString });
           }
       }
-  }, [displayEvents]); // Trigger when calculated events change
+  }, [displayEvents, data.num_bon_travaux, data.delai_intervention, data.nom_client, onUpdate]);
 
   // Gestion des jours semaine
   const weekDays = useMemo(() => {
