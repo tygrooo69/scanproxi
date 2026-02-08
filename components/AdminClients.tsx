@@ -1,21 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Client } from '../types';
+import { Client, Poseur } from '../types';
 import { fetchStorageConfig, addClient, updateClient, deleteClient } from '../services/configService';
 
 const AdminClients: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
+  const [poseurs, setPoseurs] = useState<Poseur[]>([]); // État pour la liste des poseurs
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newClient, setNewClient] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
-  const [editForm, setEditForm] = useState<Omit<Client, 'id'>>({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
+  
+  const initialForm = { nom: '', codeClient: '', typeAffaire: '', bpu: '', default_poseur: '' };
+  const [newClient, setNewClient] = useState<Omit<Client, 'id'>>(initialForm);
+  const [editForm, setEditForm] = useState<Omit<Client, 'id'>>(initialForm);
 
-  const reloadClients = async () => {
+  const reloadData = async () => {
     const config = await fetchStorageConfig();
-    if (config) setClients(config.clients);
+    if (config) {
+      setClients(config.clients);
+      setPoseurs(config.poseurs);
+    }
   };
 
-  useEffect(() => { reloadClients(); }, []);
+  useEffect(() => { reloadData(); }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +29,9 @@ const AdminClients: React.FC = () => {
     setIsSaving(true);
     const result = await addClient(newClient);
     if (result) {
-      setNewClient({ nom: '', codeClient: '', typeAffaire: '', bpu: '' });
+      setNewClient(initialForm);
       setIsAdding(false);
-      await reloadClients();
+      await reloadData();
     } else {
       alert("Erreur serveur lors de l'ajout.");
     }
@@ -37,7 +43,7 @@ const AdminClients: React.FC = () => {
     const success = await updateClient(id, editForm);
     if (success) {
       setEditingId(null);
-      await reloadClients();
+      await reloadData();
     } else {
       alert("Erreur serveur lors de la mise à jour.");
     }
@@ -48,13 +54,25 @@ const AdminClients: React.FC = () => {
     if (!confirm("Supprimer ce client du référentiel ?")) return;
     setIsSaving(true);
     const success = await deleteClient(id);
-    if (success) await reloadClients();
+    if (success) await reloadData();
     setIsSaving(false);
   };
 
   const startEditing = (client: Client) => {
     setEditingId(client.id);
-    setEditForm({ nom: client.nom, codeClient: client.codeClient, typeAffaire: client.typeAffaire, bpu: client.bpu || '' });
+    setEditForm({ 
+        nom: client.nom, 
+        codeClient: client.codeClient, 
+        typeAffaire: client.typeAffaire, 
+        bpu: client.bpu || '',
+        default_poseur: client.default_poseur || ''
+    });
+  };
+
+  const getPoseurName = (id?: string) => {
+      if (!id) return null;
+      const p = poseurs.find(pos => pos.id === id);
+      return p ? p.nom : id;
   };
 
   return (
@@ -82,6 +100,21 @@ const AdminClients: React.FC = () => {
           <input type="text" required placeholder="Code ERP" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.codeClient} onChange={e => setNewClient({...newClient, codeClient: e.target.value})} />
           <input type="text" placeholder="Type Affaire" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.typeAffaire} onChange={e => setNewClient({...newClient, typeAffaire: e.target.value})} />
           <input type="text" placeholder="Code BPU" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.bpu} onChange={e => setNewClient({...newClient, bpu: e.target.value})} />
+          
+          <div className="md:col-span-4">
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Poseur par défaut</label>
+             <select 
+                className="w-full p-2.5 border rounded-xl bg-slate-50"
+                value={newClient.default_poseur}
+                onChange={e => setNewClient({...newClient, default_poseur: e.target.value})}
+             >
+                <option value="">-- Aucun poseur assigné --</option>
+                {poseurs.map(p => (
+                    <option key={p.id} value={p.id}>{p.nom} {p.type ? `(${p.type})` : ''}</option>
+                ))}
+             </select>
+          </div>
+
           <button type="submit" disabled={isSaving} className="md:col-span-4 bg-emerald-600 text-white py-3 rounded-xl font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg transition-all">
             {isSaving ? 'Enregistrement...' : 'Créer dans PocketBase'}
           </button>
@@ -94,7 +127,7 @@ const AdminClients: React.FC = () => {
             <tr>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Nom PDF</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Code ERP</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Type</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Type / Poseur</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">BPU</th>
               <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Actions</th>
             </tr>
@@ -109,7 +142,31 @@ const AdminClients: React.FC = () => {
                   {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.codeClient} onChange={e => setEditForm({...editForm, codeClient: e.target.value})} /> : <code className="bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold">{c.codeClient}</code>}
                 </td>
                 <td className="px-6 py-4">
-                  {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.typeAffaire} onChange={e => setEditForm({...editForm, typeAffaire: e.target.value})} /> : c.typeAffaire}
+                  {editingId === c.id ? (
+                      <div className="space-y-2">
+                          <input type="text" placeholder="Type" className="w-full p-2 border rounded font-mono text-xs" value={editForm.typeAffaire} onChange={e => setEditForm({...editForm, typeAffaire: e.target.value})} />
+                          <select 
+                            className="w-full p-2 border rounded text-xs"
+                            value={editForm.default_poseur}
+                            onChange={e => setEditForm({...editForm, default_poseur: e.target.value})}
+                          >
+                             <option value="">-- Poseur --</option>
+                             {poseurs.map(p => (
+                                <option key={p.id} value={p.id}>{p.nom}</option>
+                             ))}
+                          </select>
+                      </div>
+                  ) : (
+                      <div className="flex flex-col">
+                          <span className="text-sm">{c.typeAffaire}</span>
+                          {c.default_poseur && (
+                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded w-fit mt-1">
+                                  <i className="fas fa-user-hard-hat mr-1"></i>
+                                  {getPoseurName(c.default_poseur)}
+                              </span>
+                          )}
+                      </div>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.bpu} onChange={e => setEditForm({...editForm, bpu: e.target.value})} /> : <span className="font-mono text-slate-500">{c.bpu || '-'}</span>}

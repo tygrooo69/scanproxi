@@ -166,7 +166,8 @@ app.get('/api/bootstrap', async (req, res) => {
         nom: c.nom, 
         codeClient: c.codeClient, 
         typeAffaire: c.typeAffaire,
-        bpu: c.bpu
+        bpu: c.bpu,
+        default_poseur: c.default_poseur // Mapping du nouveau champ relation
       })),
       poseurs: poseursReq.map(p => ({ 
         id: p.id, 
@@ -238,7 +239,10 @@ app.post('/api/calendar/events', requirePb, async (req, res) => {
     icsUrl = `${baseUrl}/remote.php/dav/calendars/${poseur.nextcloud_user}/personal?export`;
 
     // 3. Fetch ICS avec Basic Auth
-    const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');
+    // NOTE: On utilise le user du poseur pour l'authentification (comme demandé), 
+    // en supposant que le mot de passe global fonctionne pour ce compte.
+    const authUser = poseur.nextcloud_user;
+    const auth = Buffer.from(`${authUser}:${ncConfig.password}`).toString('base64');
     
     const response = await fetch(icsUrl, {
       headers: {
@@ -398,7 +402,9 @@ app.post('/api/calendar/event/save', requirePb, async (req, res) => {
     const vCalendarData = vCalendarBody.join('\r\n');
 
     // 3. Envoi PUT vers Nextcloud
-    const auth = Buffer.from(`${ncConfig.username}:${ncConfig.password}`).toString('base64');
+    // NOTE: On utilise le user du poseur pour l'authentification (comme demandé)
+    const authUser = poseur.nextcloud_user;
+    const auth = Buffer.from(`${authUser}:${ncConfig.password}`).toString('base64');
     
     const response = await fetch(targetUrl, {
       method: 'PUT',

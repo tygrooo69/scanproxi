@@ -105,13 +105,27 @@ const App: React.FC = () => {
       
       setMappedClient(found || null);
 
-      // Auto-assignation Poseur
-      if (found && found.typeAffaire && allPoseurs.length > 0) {
-         const match = allPoseurs.find(p => p.type === found.typeAffaire);
-         if (match) {
-            setSelectedPoseurId(match.id);
-            addLog('info', `Poseur pré-sélectionné : ${match.nom} (Type: ${match.type})`);
-         }
+      // Auto-assignation Poseur (Nouvelle Logique)
+      if (found) {
+        let assignedPoseur: Poseur | undefined;
+        let method = '';
+
+        // Priorité 1 : Poseur directement lié au client (nouveau champ)
+        if (found.default_poseur && allPoseurs.length > 0) {
+            assignedPoseur = allPoseurs.find(p => p.id === found.default_poseur);
+            method = 'Lien Client';
+        } 
+        
+        // Priorité 2 (Fallback) : Matching par type d'affaire
+        if (!assignedPoseur && found.typeAffaire && allPoseurs.length > 0) {
+            assignedPoseur = allPoseurs.find(p => p.type === found.typeAffaire);
+            method = 'Type Affaire';
+        }
+
+        if (assignedPoseur) {
+            setSelectedPoseurId(assignedPoseur.id);
+            addLog('info', `Poseur assigné (${method}) : ${assignedPoseur.nom}`);
+        }
       }
 
     } catch (e) {

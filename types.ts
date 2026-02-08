@@ -32,6 +32,7 @@ export interface Client {
   codeClient: string; // ex: 411DRA038
   typeAffaire: string; // ex: O3-0
   bpu?: string; // Code BPU
+  default_poseur?: string; // ID du poseur par défaut (Relation PocketBase)
 }
 
 export interface NextcloudConfig {
