@@ -22,8 +22,8 @@ const App: React.FC = () => {
   // Layout State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [isCalendarVisible, setIsCalendarVisible] = useState(true); // Nouvel état pour l'agenda
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false); // Nouvel état pour le modal PDF
+  const [isCalendarVisible, setIsCalendarVisible] = useState(true);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   // Terminal Logs State (Shared)
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -33,6 +33,9 @@ const App: React.FC = () => {
   const [autoChantierNumber, setAutoChantierNumber] = useState<string | null>(null);
   const [isFetchingChantier, setIsFetchingChantier] = useState(false);
   
+  // Trigger pour forcer le re-calcul du mapping (Client/Poseur) au changement de vue
+  const [refreshDataTrigger, setRefreshDataTrigger] = useState(0);
+
   // Calendar & Poseur sync state
   const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
   const [allPoseurs, setAllPoseurs] = useState<Poseur[]>([]);
@@ -40,7 +43,7 @@ const App: React.FC = () => {
   const [isRdvSaved, setIsRdvSaved] = useState(false);
   const [calendarRefreshTrigger, setCalendarRefreshTrigger] = useState(0);
   
-  // Transmission State (Moved from SqlExporter)
+  // Transmission State
   const [transmitting, setTransmitting] = useState(false);
   const [transmitStatus, setTransmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -83,12 +86,14 @@ const App: React.FC = () => {
   // --- AUTOMATISATION LOGIQUE METIER ---
   
   // 1. Détection automatique du Client et Poseur
+  // Ajout de refreshDataTrigger dans les dépendances pour relancer la logique au retour de l'admin
   useEffect(() => {
     if (!extractedData?.nom_client) {
       setMappedClient(null);
       return;
     }
 
+    // On recharge la liste des clients depuis le localStorage (qui a pu être mis à jour par fetchStorageConfig)
     const saved = localStorage.getItem('buildscan_clients');
     if (!saved) return;
 
@@ -131,7 +136,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Erreur parsing clients", e);
     }
-  }, [extractedData?.nom_client, allPoseurs, addLog]);
+  }, [extractedData?.nom_client, allPoseurs, addLog, refreshDataTrigger]);
 
   // 2. Récupération automatique du numéro d'affaire via Webhook
   useEffect(() => {
@@ -318,14 +323,19 @@ const App: React.FC = () => {
   };
 
   const handlePdfDoubleClick = () => {
-    // Affiche le PDF en grand
     setIsPdfModalOpen(true);
-    // Masque l'agenda pour donner plus de place aux résultats (mode saisie/lecture)
     setIsCalendarVisible(false);
   };
 
-  const handleViewChange = (view: AppView) => {
+  const handleViewChange = async (view: AppView) => {
     if (view === 'analyzer') {
+      // Lors du retour à l'analyseur, on recharge les configs pour prendre en compte les modifs admin
+      // et on incrémente le trigger pour relancer le matching client/poseur
+      const config = await fetchStorageConfig();
+      if (config) {
+        setAllPoseurs(config.poseurs);
+      }
+      setRefreshDataTrigger(prev => prev + 1);
       setCurrentView('analyzer');
       return;
     }
