@@ -450,20 +450,68 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
 
        {/* MODALE D'EDITION */}
        {isModalOpen && editingEvent && (
-          <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-             <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-xl shadow-2xl flex flex-col max-h-full">
-                <form onSubmit={handleSaveEvent} className="p-4 space-y-4">
-                   <h3 className="text-white font-bold mb-4">Édition Rapide</h3>
-                   <input 
-                     type="text" required
-                     className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm"
-                     value={editingEvent.title}
-                     onChange={e => setEditingEvent({...editingEvent, title: e.target.value})}
-                   />
-                   {/* ... champs simplifiés pour l'exemple ... */}
-                   <div className="flex gap-2 pt-2">
-                       <button type="submit" className="flex-1 bg-emerald-600 text-white py-2 rounded font-bold">Enregistrer</button>
-                       <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-600 text-white py-2 rounded font-bold">Fermer</button>
+          <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+             <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-xl shadow-2xl flex flex-col max-h-[90%] overflow-y-auto">
+                <form onSubmit={handleSaveEvent} className="p-5 space-y-4">
+                   <div className="flex items-center justify-between">
+                        <h3 className="text-white font-bold text-lg">Édition Rendez-vous</h3>
+                        {editingEvent.isTentative && <span className="text-[10px] bg-orange-500 text-black px-2 py-0.5 rounded font-bold uppercase">Nouveau</span>}
+                   </div>
+                   
+                   <div className="space-y-1">
+                       <label className="text-[10px] uppercase font-bold text-slate-400">Titre</label>
+                       <input 
+                         type="text" required
+                         className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm focus:border-blue-500 outline-none"
+                         value={editingEvent.title}
+                         onChange={e => setEditingEvent({...editingEvent, title: e.target.value})}
+                       />
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-3">
+                       <div className="space-y-1">
+                           <label className="text-[10px] uppercase font-bold text-slate-400">Début</label>
+                           <input 
+                             type="datetime-local" required
+                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs focus:border-blue-500 outline-none"
+                             value={toLocalISO(editingEvent.start)}
+                             onChange={e => {
+                                 const d = new Date(e.target.value);
+                                 setEditingEvent({...editingEvent, start: d.toISOString()});
+                             }}
+                           />
+                       </div>
+                       <div className="space-y-1">
+                           <label className="text-[10px] uppercase font-bold text-slate-400">Fin</label>
+                           <input 
+                             type="datetime-local" required
+                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs focus:border-blue-500 outline-none"
+                             value={toLocalISO(editingEvent.end)}
+                             onChange={e => {
+                                 const d = new Date(e.target.value);
+                                 setEditingEvent({...editingEvent, end: d.toISOString()});
+                             }}
+                           />
+                       </div>
+                   </div>
+
+                   <div className="space-y-1">
+                       <label className="text-[10px] uppercase font-bold text-slate-400">Description</label>
+                       <textarea 
+                         className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs focus:border-blue-500 outline-none h-24"
+                         value={editingEvent.description || ''}
+                         onChange={e => setEditingEvent({...editingEvent, description: e.target.value})}
+                       />
+                   </div>
+
+                   <div className="flex gap-2 pt-2 border-t border-slate-700 mt-2">
+                       <button type="submit" disabled={isSaving} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg font-bold transition-colors flex items-center justify-center gap-2">
+                          {isSaving && <i className="fas fa-spinner fa-spin"></i>}
+                          Enregistrer
+                       </button>
+                       <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg font-bold transition-colors">
+                          Annuler
+                       </button>
                    </div>
                 </form>
              </div>
