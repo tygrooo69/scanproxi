@@ -20,6 +20,10 @@ interface ResultCardProps {
   tentativeEvent: CalendarEvent | null;
   isRdvSaved: boolean;
   onValidateRdv: () => void;
+  
+  // Layout control
+  isCalendarVisible?: boolean;
+  onToggleCalendar?: () => void;
 }
 
 const ResultCard: React.FC<ResultCardProps> = ({ 
@@ -37,7 +41,9 @@ const ResultCard: React.FC<ResultCardProps> = ({
     transmitStatus,
     tentativeEvent,
     isRdvSaved,
-    onValidateRdv
+    onValidateRdv,
+    isCalendarVisible = true,
+    onToggleCalendar
 }) => {
   
   const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
@@ -81,12 +87,24 @@ const ResultCard: React.FC<ResultCardProps> = ({
           <i className="fas fa-check-circle text-green-500"></i>
           Résultats de l'extraction
         </h2>
-        <button 
-          onClick={onReset}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          Nouveau Scan
-        </button>
+        
+        <div className="flex items-center gap-3">
+             {/* Bouton pour réafficher l'agenda si masqué */}
+             {!isCalendarVisible && onToggleCalendar && (
+                <button 
+                  onClick={onToggleCalendar}
+                  className="text-slate-500 hover:text-blue-600 font-bold text-xs uppercase flex items-center gap-2 transition-colors border border-slate-300 px-3 py-1.5 rounded-lg bg-white"
+                >
+                   <i className="fas fa-columns"></i> Afficher Agenda
+                </button>
+             )}
+            <button 
+              onClick={onReset}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              Nouveau Scan
+            </button>
+        </div>
       </div>
 
       {mappedClient ? (
@@ -131,7 +149,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
                )}
 
                <button 
-                  disabled={isTransmitting}
+                  disabled={isTransmitting || transmitStatus === 'success'}
                   onClick={onTransmit}
                   className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 ${
                     transmitStatus === 'success' ? 'bg-green-600 text-white' : 
@@ -142,7 +160,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
                   {isTransmitting ? (
                       <><i className="fas fa-spinner fa-spin"></i> Envoi...</>
                   ) : transmitStatus === 'success' ? (
-                      <><i className="fas fa-check"></i> Transmis !</>
+                      <><i className="fas fa-check"></i> Enregistrement réussi</>
                   ) : (
                       <><i className="fas fa-save text-lg"></i> Enregistrement</>
                   )}

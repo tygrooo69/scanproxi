@@ -14,6 +14,9 @@ interface CalendarManagerProps {
   onTentativeChange?: (event: CalendarEvent | null) => void;
   onRdvStatusChange?: (isSaved: boolean) => void;
   refreshTrigger?: number; // Pour forcer le rafraichissement depuis le parent
+
+  // UI Control
+  onClose?: () => void;
 }
 
 const CalendarManager: React.FC<CalendarManagerProps> = ({ 
@@ -26,7 +29,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
   onUpdate,
   onTentativeChange,
   onRdvStatusChange,
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  onClose
 }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -347,7 +351,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800 h-full flex flex-col relative">
        
        {/* HEADER */}
-       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-sky-600/20 text-sky-400 rounded flex items-center justify-center">
               <i className="fas fa-calendar-alt text-sm"></i>
@@ -372,13 +376,26 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
              </button>
           </div>
           
-          <button 
-            onClick={fetchEvents}
-            disabled={isLoading || !selectedPoseur}
-            className="text-slate-400 hover:text-white transition-colors"
-          >
-            <i className={`fas fa-sync-alt ${isLoading ? 'fa-spin' : ''}`}></i>
-          </button>
+          <div className="flex gap-2">
+             <button 
+                onClick={fetchEvents}
+                disabled={isLoading || !selectedPoseur}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                title="Rafraîchir"
+            >
+                <i className={`fas fa-sync-alt ${isLoading ? 'fa-spin' : ''}`}></i>
+            </button>
+            
+            {onClose && (
+                <button 
+                    onClick={onClose}
+                    className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
+                    title="Masquer l'agenda"
+                >
+                    <i className="fas fa-compress-alt"></i>
+                </button>
+            )}
+          </div>
        </div>
 
        {/* CALENDRIER */}

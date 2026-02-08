@@ -22,6 +22,8 @@ const App: React.FC = () => {
   // Layout State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(true); // Nouvel état pour l'agenda
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false); // Nouvel état pour le modal PDF
 
   // Terminal Logs State (Shared)
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -282,11 +284,15 @@ const App: React.FC = () => {
           body: formData
         });
 
-        if (response.ok) {
+        // Lecture de la réponse JSON de n8n
+        const result = await response.json().catch(() => ({}));
+
+        // On considère un succès si HTTP OK et (pas de json OU json.success=true)
+        if (response.ok && (result.success !== false)) {
           setTransmitStatus('success');
-          addLog('response', `Réponse n8n : Succès (HTTP ${response.status})`);
+          addLog('response', `Réponse n8n : ${result.message || 'Succès'}`);
         } else {
-          throw new Error(`Erreur n8n : ${response.status}`);
+          throw new Error(result.message || `Erreur n8n : ${response.status}`);
         }
       } catch (err: any) {
         console.error("Erreur Webhook:", err);
@@ -294,10 +300,15 @@ const App: React.FC = () => {
         addLog('error', `Échec transmission: ${err.message}`);
       } finally {
         setTransmitting(false);
-        setTimeout(() => setTransmitStatus('idle'), 3000);
       }
   };
 
+  const handlePdfDoubleClick = () => {
+    // Affiche le PDF en grand
+    setIsPdfModalOpen(true);
+    // Masque l'agenda pour donner plus de place aux résultats (mode saisie/lecture)
+    setIsCalendarVisible(false);
+  };
 
   const handleViewChange = (view: AppView) => {
     if (view === 'analyzer') {
@@ -352,6 +363,8 @@ const App: React.FC = () => {
     clearLogs();
     setTentativeEvent(null);
     setIsRdvSaved(false);
+    // Réinitialisation layout
+    setIsCalendarVisible(true);
     
     addLog('info', 'Analyse du document démarrée...');
 
@@ -404,6 +417,7 @@ const App: React.FC = () => {
     // Re-ouvrir la sidebar et le header si on reset
     setIsSidebarOpen(true);
     setIsHeaderVisible(true);
+    setIsCalendarVisible(true);
   };
 
   if (!isInitialized) {
@@ -420,6 +434,26 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden relative">
       
+      {/* MODAL PDF GRAND FORMAT */}
+      {isPdfModalOpen && filePreviewUrl && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white w-full h-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col relative">
+              <div className="bg-slate-800 text-white px-4 py-2 flex items-center justify-between shrink-0">
+                  <span className="font-bold text-sm uppercase tracking-wider"><i className="fas fa-file-pdf mr-2"></i> Aperçu Document (Mode Copie)</span>
+                  <button 
+                    onClick={() => setIsPdfModalOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-700 transition-colors"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+              </div>
+              <div className="flex-grow bg-slate-200">
+                  <iframe src={`${filePreviewUrl}#toolbar=0&navpanes=0`} className="w-full h-full" title="PDF Fullscreen"></iframe>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* HEADER TOGGLE BUTTON (Visible only when header is hidden) */}
       {!isHeaderVisible && (
          <button 
@@ -458,10 +492,17 @@ const App: React.FC = () => {
                   <FileUploader onFileSelect={handleFileSelect} disabled={status === AppStatus.ANALYZING} />
                   
                   {filePreviewUrl && (
-                    <div className="mt-6 animate-in fade-in zoom-in-95 duration-300">
-                      <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest text-center">Aperçu</p>
-                      <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner">
-                        <iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none" />
+                    <div className="mt-6 animate-in fade-in zoom-in-95 duration-300 group">
+                      <div className="flex justify-between items-center mb-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aperçu</p>
+                          <span className="text-[9px] bg-blue-100 text-blue-700 px-2 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity">Double-clic pour agrandir</span>
+                      </div>
+                      <div 
+                        onDoubleClick={handlePdfDoubleClick}
+                        className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner cursor-zoom-in hover:ring-2 hover:ring-blue-400 transition-all"
+                        title="Double-cliquez pour agrandir et sélectionner du texte"
+                      >
+                        <iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none pointer-events-none" />
                       </div>
                     </div>
                   )}
@@ -534,41 +575,49 @@ const App: React.FC = () => {
                     {/* LAYOUT GRID: RESULTATS (GAUCHE) + CALENDRIER (DROITE) */}
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
                         {/* 1. RESULTATS */}
-                        <ResultCard 
-                            data={extractedData} 
-                            onReset={reset} 
-                            mappedClient={mappedClient}
-                            chantierNumber={autoChantierNumber}
-                            isFetchingChantier={isFetchingChantier}
-                            onUpdate={handleDataUpdate}
-                            // Props ajoutées pour transmission et poseur
-                            poseurs={allPoseurs}
-                            selectedPoseurId={selectedPoseurId}
-                            onPoseurSelect={setSelectedPoseurId}
-                            onTransmit={handleTransmit}
-                            isTransmitting={transmitting}
-                            transmitStatus={transmitStatus}
-                            // Props validation RDV
-                            tentativeEvent={tentativeEvent}
-                            isRdvSaved={isRdvSaved}
-                            onValidateRdv={handleSaveRdv}
-                        />
-                        
-                        {/* 2. CALENDRIER (A DROITE) */}
-                        <div className="h-full min-h-[600px]">
-                            <CalendarManager 
-                                poseurs={allPoseurs}
-                                selectedPoseurId={selectedPoseurId}
-                                data={extractedData}
-                                onAddLog={addLog}
-                                chantierNumber={autoChantierNumber}
-                                originalFile={originalFile}
-                                onUpdate={handleDataUpdate}
-                                onTentativeChange={setTentativeEvent}
-                                onRdvStatusChange={setIsRdvSaved}
-                                refreshTrigger={calendarRefreshTrigger}
-                            />
+                        <div className={`transition-all duration-300 ${isCalendarVisible ? '' : 'xl:col-span-2'}`}>
+                          <ResultCard 
+                              data={extractedData} 
+                              onReset={reset} 
+                              mappedClient={mappedClient}
+                              chantierNumber={autoChantierNumber}
+                              isFetchingChantier={isFetchingChantier}
+                              onUpdate={handleDataUpdate}
+                              // Props ajoutées pour transmission et poseur
+                              poseurs={allPoseurs}
+                              selectedPoseurId={selectedPoseurId}
+                              onPoseurSelect={setSelectedPoseurId}
+                              onTransmit={handleTransmit}
+                              isTransmitting={transmitting}
+                              transmitStatus={transmitStatus}
+                              // Props validation RDV
+                              tentativeEvent={tentativeEvent}
+                              isRdvSaved={isRdvSaved}
+                              onValidateRdv={handleSaveRdv}
+                              // Props toggle calendar
+                              isCalendarVisible={isCalendarVisible}
+                              onToggleCalendar={() => setIsCalendarVisible(!isCalendarVisible)}
+                          />
                         </div>
+                        
+                        {/* 2. CALENDRIER (A DROITE) - MASQUABLE */}
+                        {isCalendarVisible && (
+                          <div className="h-full min-h-[600px] animate-in fade-in slide-in-from-right-4 duration-300">
+                              <CalendarManager 
+                                  poseurs={allPoseurs}
+                                  selectedPoseurId={selectedPoseurId}
+                                  data={extractedData}
+                                  onAddLog={addLog}
+                                  chantierNumber={autoChantierNumber}
+                                  originalFile={originalFile}
+                                  onUpdate={handleDataUpdate}
+                                  onTentativeChange={setTentativeEvent}
+                                  onRdvStatusChange={setIsRdvSaved}
+                                  refreshTrigger={calendarRefreshTrigger}
+                                  onClose={() => setIsCalendarVisible(false)}
+                              />
+                          </div>
+                        )}
                     </div>
 
                     {/* 3. TERMINAL (EN BAS) */}
