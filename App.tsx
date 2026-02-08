@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry } from './types';
+import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
 import { fetchStorageConfig } from './services/configService';
 import Header from './components/Header';
@@ -34,6 +34,9 @@ const App: React.FC = () => {
   // Calendar & Poseur sync state
   const [selectedPoseurId, setSelectedPoseurId] = useState<string>("");
   const [allPoseurs, setAllPoseurs] = useState<Poseur[]>([]);
+  const [tentativeEvent, setTentativeEvent] = useState<CalendarEvent | null>(null);
+  const [isRdvSaved, setIsRdvSaved] = useState(false);
+  const [calendarRefreshTrigger, setCalendarRefreshTrigger] = useState(0);
   
   // Transmission State (Moved from SqlExporter)
   const [transmitting, setTransmitting] = useState(false);
@@ -165,8 +168,55 @@ const App: React.FC = () => {
     fetchChantier();
   }, [mappedClient]);
 
+  // --- SAVE RDV ---
+  const handleSaveRdv = async () => {
+      if (!tentativeEvent || !selectedPoseurId) return;
 
-  // --- TRANSMISSION WEBHOOK (Moved from SqlExporter) ---
+      addLog('request', `Validation RDV le ${new Date(tentativeEvent.start).toLocaleString()}...`);
+
+      try {
+          let fileData = null;
+          let fileName = null;
+
+          if (originalFile) {
+              fileName = originalFile.name;
+              fileData = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve((reader.result as string).split(',')[1]); 
+                  reader.onerror = reject;
+                  reader.readAsDataURL(originalFile);
+              });
+          }
+
+          const res = await fetch('/api/calendar/event/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  poseur_id: selectedPoseurId,
+                  event: tentativeEvent,
+                  file: fileData ? { name: fileName, data: fileData } : undefined
+              })
+          });
+
+          const result = await res.json();
+          
+          if (res.ok && result.success) {
+              addLog('success', `RDV validé et enregistré dans Nextcloud.`);
+              setIsRdvSaved(true);
+              setTentativeEvent(null); // Plus de tentative, c'est enregistré
+              setCalendarRefreshTrigger(prev => prev + 1); // Force refresh calendar
+          } else {
+              throw new Error(result.error || "Erreur enregistrement");
+          }
+
+      } catch (e: any) {
+          addLog('error', `Echec validation RDV: ${e.message}`);
+          alert("Erreur lors de la validation du RDV: " + e.message);
+      }
+  };
+
+
+  // --- TRANSMISSION WEBHOOK ---
   const handleTransmit = async () => {
       if (!extractedData) return;
       
@@ -283,7 +333,6 @@ const App: React.FC = () => {
   
   const handlePoseurSelect = (id: string, poseurs: Poseur[]) => {
       setSelectedPoseurId(id);
-      // setAllPoseurs(poseurs); // Déjà géré au chargement
   };
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -299,8 +348,11 @@ const App: React.FC = () => {
     setMappedClient(null);
     setAutoChantierNumber(null);
     setOriginalFile(file);
-    // Reset logs on new file
+    // Reset states
     clearLogs();
+    setTentativeEvent(null);
+    setIsRdvSaved(false);
+    
     addLog('info', 'Analyse du document démarrée...');
 
     try {
@@ -347,6 +399,8 @@ const App: React.FC = () => {
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     setFilePreviewUrl(null);
     clearLogs();
+    setTentativeEvent(null);
+    setIsRdvSaved(false);
     // Re-ouvrir la sidebar et le header si on reset
     setIsSidebarOpen(true);
     setIsHeaderVisible(true);
@@ -494,6 +548,10 @@ const App: React.FC = () => {
                             onTransmit={handleTransmit}
                             isTransmitting={transmitting}
                             transmitStatus={transmitStatus}
+                            // Props validation RDV
+                            tentativeEvent={tentativeEvent}
+                            isRdvSaved={isRdvSaved}
+                            onValidateRdv={handleSaveRdv}
                         />
                         
                         {/* 2. CALENDRIER (A DROITE) */}
@@ -506,6 +564,9 @@ const App: React.FC = () => {
                                 chantierNumber={autoChantierNumber}
                                 originalFile={originalFile}
                                 onUpdate={handleDataUpdate}
+                                onTentativeChange={setTentativeEvent}
+                                onRdvStatusChange={setIsRdvSaved}
+                                refreshTrigger={calendarRefreshTrigger}
                             />
                         </div>
                     </div>

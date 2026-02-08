@@ -11,6 +11,57 @@ const AdminWiki: React.FC = () => {
   // Identifiant unique pour la page d'aide principale
   const SLUG = 'aide-et-fonctionnalite';
 
+  const DEFAULT_CONTENT = `# 📚 Documentation BuildScan AI
+
+BuildScan AI est une solution d'analyse intelligente de bons de travaux pour le bâtiment, connectée à votre ERP et votre Agenda.
+
+## 🚀 Fonctionnalités Principales
+
+### 1. Analyse Intelligente (IA)
+*   **Extraction automatique** : Numéro de bon, Adresses (3 lignes), Contacts (Gardien/Locataire), Dates.
+*   **Nettoyage** : Reformatage automatique des dates (JJ/MM/AAAA) et mise en majuscule des descriptifs.
+*   **Confidentialité** : Les données financières (Prix) sont ignorées.
+
+### 2. Gestion des Clients & Poseurs
+*   **Mapping Client** : Reconnaissance automatique du donneur d'ordre via le nom sur le PDF pour associer le Code ERP et le Type d'Affaire.
+*   **Assignation Poseur** : Pré-sélection automatique de l'équipe selon le Type d'Affaire.
+
+### 3. Planification (Nextcloud Calendar)
+*   **Vue Agenda** : Visualisation en temps réel des plannings des poseurs.
+*   **Prise de RDV** : Proposition automatique de créneaux (algorithme "Tetris").
+*   **Synchro** : Création d'événements dans Nextcloud avec le PDF en pièce jointe.
+
+### 4. Export & Intégration
+*   **Webhook n8n** : Déclenche un workflow d'automatisation complet qui :
+    *   Enregistre le chantier dans **ADIBAT** avec le document PDF joint.
+    *   Crée l'intervention dans **Kizeo Forms**.
+    *   Envoie un **email de confirmation** à la fin du traitement.
+*   **Logs** : Suivi détaillé des transmissions via le terminal intégré.
+
+---
+
+## 🔄 Workflow d'Enregistrement (Pas à Pas)
+
+### Étape 1 : Scan & Import
+1.  Glissez un fichier PDF dans la zone **Scan PDF**.
+2.  L'IA analyse le document (10-30 secondes).
+3.  L'interface s'adapte : le scan se masque pour laisser place aux résultats.
+
+### Étape 2 : Vérification & Enrichissement
+1.  Vérifiez les champs extraits (Adresses, Téléphones).
+2.  Le **Client** est-il reconnu ? (Encadré Vert). Sinon, ajoutez-le dans l'onglet *Administration > Clients*.
+3.  Confirmez ou modifiez le **Poseur** assigné.
+
+### Étape 3 : Planification
+1.  Consultez l'agenda à droite.
+2.  Le système propose un créneau ("Tentative").
+3.  **Double-cliquez** sur le créneau pour confirmer l'heure et enregistrer le RDV dans l'agenda Nextcloud.
+
+### Étape 4 : Transmission
+1.  Cliquez sur le bouton **Enregistrement** (Vert).
+2.  Les données sont envoyées au Webhook (n8n).
+3.  Le terminal en bas confirme le succès de l'opération.`;
+
   useEffect(() => {
     loadContent();
   }, []);
@@ -22,7 +73,7 @@ const AdminWiki: React.FC = () => {
         setContent(data.content);
         if (data.updated) setLastSaved(new Date(data.updated));
     } else {
-        setContent("# Aide & Fonctionnalités\n\nBienvenue dans la documentation de BuildScan AI.\n\n## Comment utiliser l'application ?\n1. Uploader un PDF\n2. Vérifier les données\n3. Enregistrer vers n8n\n\n(Cliquez sur Modifier pour éditer ce texte)");
+        setContent(DEFAULT_CONTENT);
     }
     setIsLoading(false);
   };

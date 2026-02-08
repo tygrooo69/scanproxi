@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ConstructionOrderData, Client, Poseur } from '../types';
+import { ConstructionOrderData, Client, Poseur, CalendarEvent } from '../types';
 
 interface ResultCardProps {
   data: ConstructionOrderData;
@@ -9,13 +9,17 @@ interface ResultCardProps {
   isFetchingChantier: boolean;
   onUpdate: (updates: Partial<ConstructionOrderData>) => void;
   
-  // Nouveaux Props pour l'intégration des actions
   poseurs: Poseur[];
   selectedPoseurId: string;
   onPoseurSelect: (id: string) => void;
   onTransmit: () => void;
   isTransmitting: boolean;
   transmitStatus: 'idle' | 'success' | 'error';
+  
+  // Nouveaux Props pour la validation RDV
+  tentativeEvent: CalendarEvent | null;
+  isRdvSaved: boolean;
+  onValidateRdv: () => void;
 }
 
 const ResultCard: React.FC<ResultCardProps> = ({ 
@@ -30,29 +34,26 @@ const ResultCard: React.FC<ResultCardProps> = ({
     onPoseurSelect,
     onTransmit,
     isTransmitting,
-    transmitStatus
+    transmitStatus,
+    tentativeEvent,
+    isRdvSaved,
+    onValidateRdv
 }) => {
   
   const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
     onUpdate({ [field]: value });
   };
 
-  // Effect pour reformater la date du document en JJ/MM/AAAA
   useEffect(() => {
     if (data.date_intervention) {
         let formattedDate = data.date_intervention;
-        
-        // Cas 1: YYYY-MM-DD -> JJ/MM/AAAA
         if (formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
             const [year, month, day] = formattedDate.split('-');
             formattedDate = `${day}/${month}/${year}`;
         }
-        // Cas 2: JJ-MM-AAAA -> JJ/MM/AAAA (Remplace tirets par slashs)
         else if (formattedDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
             formattedDate = formattedDate.replace(/-/g, '/');
         }
-
-        // Mise à jour si le format a changé
         if (formattedDate !== data.date_intervention) {
             onUpdate({ date_intervention: formattedDate });
         }
@@ -65,6 +66,13 @@ const ResultCard: React.FC<ResultCardProps> = ({
     { key: "date_intervention", label: "Date du Document", icon: "fa-file-signature", color: "text-purple-600" },
     { key: "delai_intervention", label: "Délai / RDV Agenda", icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
+
+  // Helper pour afficher la date lisiblement dans le bouton
+  const getButtonDateLabel = () => {
+    if (!tentativeEvent) return "";
+    const d = new Date(tentativeEvent.start);
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
@@ -99,15 +107,36 @@ const ResultCard: React.FC<ResultCardProps> = ({
               </div>
             </div>
 
-            {/* BOUTON ENREGISTREMENT (AGRANDI) */}
-            <div>
+            <div className="flex items-center gap-3">
+               {/* BOUTON VALIDATION DATE (NOUVEAU) */}
+               {!isRdvSaved && tentativeEvent && (
+                  <button 
+                    onClick={onValidateRdv}
+                    className="px-4 py-3 rounded-xl font-bold text-sm bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200 border border-emerald-400 flex items-center gap-2 animate-in slide-in-from-right-4"
+                  >
+                     <i className="fas fa-calendar-check text-lg"></i>
+                     <div className="flex flex-col items-start leading-none">
+                        <span className="text-[9px] uppercase opacity-90">Valider RDV</span>
+                        <span>{getButtonDateLabel()}</span>
+                     </div>
+                  </button>
+               )}
+
+               {/* Indicateur si sauvegardé */}
+               {isRdvSaved && (
+                   <div className="px-4 py-2 rounded-xl bg-white border border-emerald-200 text-emerald-700 font-bold text-xs flex items-center gap-2 shadow-sm">
+                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                      RDV Enregistré
+                   </div>
+               )}
+
                <button 
                   disabled={isTransmitting}
                   onClick={onTransmit}
                   className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 ${
                     transmitStatus === 'success' ? 'bg-green-600 text-white' : 
                     transmitStatus === 'error' ? 'bg-red-600 text-white' :
-                    'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-900/20'
+                    'bg-slate-800 text-white hover:bg-slate-700 shadow-slate-900/20'
                   }`}
                 >
                   {isTransmitting ? (
@@ -122,23 +151,18 @@ const ResultCard: React.FC<ResultCardProps> = ({
           </div>
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
-             {/* TYPE AFFAIRE */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire</p>
                 <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block">
                   <span className="font-mono font-black text-slate-700">{mappedClient.typeAffaire || 'Standard'}</span>
                 </div>
              </div>
-             
-             {/* CODE BPU */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
                 <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block min-w-[60px]">
                   <span className="font-mono font-black text-slate-700">{mappedClient.bpu || '-'}</span>
                 </div>
              </div>
-             
-             {/* NUMERO AFFAIRE */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire Webhook</p>
                 {isFetchingChantier ? (
@@ -157,7 +181,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
                 )}
              </div>
 
-             {/* ASSIGNATION POSEUR (DÉPLACÉ ICI) */}
              <div>
                  <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Assignation Poseur</p>
                  <div className="relative">
@@ -188,7 +211,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
         </div>
       )}
 
-      {/* Affichage du Descriptif des Travaux (Editable) */}
+      {/* Reste du code inchangé ... */}
       <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl focus-within:ring-2 focus-within:ring-blue-200 transition-all">
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-tools text-blue-500 text-xs"></i>
@@ -204,7 +227,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
       </div>
       
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Champs d'adresse spécifiques (Editables) */}
         <div className="space-y-1 md:col-span-2">
           <div className="flex items-center gap-2 mb-1">
             <i className="fas fa-map-marker-alt text-red-600 w-4"></i>
@@ -230,7 +252,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
           </div>
         </div>
 
-        {/* Informations Gardien (Editables) */}
         <div className="space-y-1 md:col-span-2">
            <div className="flex items-center gap-2 mb-1">
               <i className="fas fa-user-tie text-emerald-600 w-4"></i>
@@ -272,7 +293,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </div>
         </div>
 
-        {/* Autres champs standards (Editables) */}
         {fields.map((field) => (
           <div key={field.key} className="space-y-1">
             <div className="flex items-center gap-2 mb-1">

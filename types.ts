@@ -53,6 +53,16 @@ export interface ExtractionResult {
   rawJson: string;
 }
 
+export interface CalendarEvent {
+  uid?: string;
+  title: string;
+  start: string;
+  end: string;
+  location?: string;
+  description?: string;
+  isTentative?: boolean; // Pour le chantier en cours d'analyse
+}
+
 export enum AppStatus {
   IDLE = 'IDLE',
   UPLOADING = 'UPLOADING',
