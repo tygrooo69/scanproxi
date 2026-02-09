@@ -91,7 +91,6 @@ const App: React.FC = () => {
   
   // 1. Détection automatique du Client (Gestion Multi-Affaires)
   useEffect(() => {
-    // On utilise la ref pour la recherche, sinon la valeur actuelle du champ (si on vient de scanner)
     const nameToSearch = rawExtractedNameRef.current || extractedData?.nom_client;
     
     if (!nameToSearch) {
@@ -107,7 +106,6 @@ const App: React.FC = () => {
       const clients: Client[] = JSON.parse(saved);
       const searchName = nameToSearch.toLowerCase().trim();
       
-      // On récupère TOUS les clients dont le NOM PDF (c.nom) matche
       const matches = clients.filter(c => {
         const clientRefNom = c.nom.toLowerCase().trim();
         return searchName === clientRefNom || 
@@ -131,7 +129,6 @@ const App: React.FC = () => {
     }
   }, [extractedData?.nom_client, refreshDataTrigger]);
 
-  // Application du libellé client sur les données extraites
   useEffect(() => {
     if (mappedClient && extractedData) {
         const targetLibelle = mappedClient.libelle_client || mappedClient.nom;
@@ -283,34 +280,48 @@ const App: React.FC = () => {
       
       const chantier = autoChantierNumber || (extractedData.num_bon_travaux ? extractedData.num_bon_travaux.replace(/\D/g, '').substring(0, 6) : "000000");
       const imputation = `80${chantier}0`;
+      
+      // Préparation des adresses et contacts concaténés
       const fullAddress = [extractedData.adresse_1, extractedData.adresse_2, extractedData.adresse_3].filter(Boolean).join(' ');
       const contactFull = [extractedData.gardien_nom, extractedData.gardien_tel].filter(Boolean).join(' - ');
+      
       const selectedPoseur = allPoseurs.find(p => p.id === selectedPoseurId);
+      const finalClientLabel = mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '';
 
       const formData = new FormData();
       if (originalFile) formData.append('file', originalFile, 'document.pdf');
       
+      // INFOS CLIENT (MAPPING ERP)
       formData.append('codeClient', mappedClient?.codeClient || '');
       formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
       formData.append('client_bpu', mappedClient?.bpu || '');
-      
-      // TRANSMISSION DU LIBELLE CLIENT PRIORITAIRE
-      const finalClientLabel = mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '';
       formData.append('client_nom', finalClientLabel);
       
+      // INFOS CHANTIER
       formData.append('num_chantier', chantier);
       formData.append('imputation', imputation);
-      formData.append('source', "BuildScan AI");
-      formData.append('timestamp', new Date().toISOString());
       formData.append('num_bon_travaux', extractedData.num_bon_travaux || '');
-      formData.append('nom_client', extractedData.nom_client || '');
-      formData.append('adresse_intervention', fullAddress);
-      formData.append('coord_gardien', contactFull);
+      formData.append('nom_client_pdf', rawExtractedNameRef.current || extractedData.nom_client || '');
+      
+      // --- AJOUT DES CHAMPS SÉPARÉS (REQUIS PAR N8N) ---
+      formData.append('adresse_1', extractedData.adresse_1 || '');
+      formData.append('adresse_2', extractedData.adresse_2 || '');
+      formData.append('adresse_3', extractedData.adresse_3 || '');
+      formData.append('adresse_intervention', fullAddress); // Version concaténée
+      
+      formData.append('gardien_nom', extractedData.gardien_nom || '');
+      formData.append('gardien_tel', extractedData.gardien_tel || '');
       formData.append('gardien_email', extractedData.gardien_email || '');
+      formData.append('coord_gardien', contactFull); // Version concaténée
+      // ------------------------------------------------
+
       formData.append('delai_intervention', extractedData.delai_intervention || '');
       formData.append('date_intervention', extractedData.date_intervention || '');
       formData.append('descriptif_travaux', extractedData.descriptif_travaux || '');
-      formData.append('libelle', extractedData.nom_client || '');
+      
+      // METADATA
+      formData.append('source', "BuildScan AI");
+      formData.append('timestamp', new Date().toISOString());
 
       if (selectedPoseur) {
         formData.append('poseur_id', selectedPoseur.id);
@@ -319,7 +330,12 @@ const App: React.FC = () => {
         formData.append('poseur_type', selectedPoseur.type || '');
       }
 
-      addLog('request', `Envoi vers n8n...`, { imputation, poseur: selectedPoseur?.nom, client: finalClientLabel });
+      addLog('request', `Envoi complet vers n8n...`, { 
+        imputation, 
+        client: finalClientLabel,
+        has_adresse: !!extractedData.adresse_1,
+        has_contact: !!extractedData.gardien_nom
+      });
 
       try {
         const response = await fetch(webhookUrl, {
@@ -393,7 +409,7 @@ const App: React.FC = () => {
     setPotentialClients([]);
     setAutoChantierNumber(null);
     setOriginalFile(file);
-    rawExtractedNameRef.current = null; // Reset ref
+    rawExtractedNameRef.current = null;
     clearLogs();
     setTentativeEvent(null);
     setIsRdvSaved(false);
@@ -415,7 +431,6 @@ const App: React.FC = () => {
       const base64Data = await base64Promise;
       const data = await analyzeConstructionDocument(base64Data, file.type);
       
-      // On sauvegarde le nom brut AVANT toute modification pour la clé de recherche
       rawExtractedNameRef.current = data.nom_client;
       
       setExtractedData(data);
