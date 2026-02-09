@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
@@ -415,6 +416,10 @@ const App: React.FC = () => {
     setIsRdvSaved(false);
     setIsCalendarVisible(true);
     
+    // Reset transmission state for new file
+    setTransmitStatus('idle');
+    setTransmitting(false);
+    
     addLog('info', 'Analyse du document démarrée...');
 
     try {
@@ -466,6 +471,10 @@ const App: React.FC = () => {
     setIsSidebarOpen(true);
     setIsHeaderVisible(true);
     setIsCalendarVisible(true);
+    
+    // Correction: Reset transmission state here
+    setTransmitStatus('idle');
+    setTransmitting(false);
   };
 
   if (!isInitialized) {
