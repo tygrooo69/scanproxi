@@ -29,6 +29,7 @@ export interface Poseur {
 export interface Client {
   id: string;
   nom: string; // Nom tel qu'il apparaît sur les PDF
+  libelle_client?: string; // Libellé propre pour l'ERP/n8n
   codeClient: string; // ex: 411DRA038
   typeAffaire: string; // ex: O3-0
   bpu?: string; // Code BPU

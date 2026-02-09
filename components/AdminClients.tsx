@@ -1,15 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
 import { Client, Poseur } from '../types';
 import { fetchStorageConfig, addClient, updateClient, deleteClient } from '../services/configService';
 
 const AdminClients: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
-  const [poseurs, setPoseurs] = useState<Poseur[]>([]); // État pour la liste des poseurs
+  const [poseurs, setPoseurs] = useState<Poseur[]>([]); 
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  const initialForm = { nom: '', codeClient: '', typeAffaire: '', bpu: '', default_poseur: '' };
+  const initialForm = { nom: '', libelle_client: '', codeClient: '', typeAffaire: '', bpu: '', default_poseur: '' };
   const [newClient, setNewClient] = useState<Omit<Client, 'id'>>(initialForm);
   const [editForm, setEditForm] = useState<Omit<Client, 'id'>>(initialForm);
 
@@ -62,6 +63,7 @@ const AdminClients: React.FC = () => {
     setEditingId(client.id);
     setEditForm({ 
         nom: client.nom, 
+        libelle_client: client.libelle_client || '',
         codeClient: client.codeClient, 
         typeAffaire: client.typeAffaire, 
         bpu: client.bpu || '',
@@ -96,21 +98,28 @@ const AdminClients: React.FC = () => {
 
       {isAdding && (
         <form onSubmit={handleAdd} className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-4 gap-5 animate-in slide-in-from-top-4">
-          <input type="text" required placeholder="Nom (PDF)" className="w-full p-2.5 border rounded-xl" value={newClient.nom} onChange={e => setNewClient({...newClient, nom: e.target.value})} />
+          <div className="md:col-span-2">
+            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nom PDF (Reconnaissance)</label>
+            <input type="text" required placeholder="ex: OPH DE DRANCY" className="w-full p-2.5 border rounded-xl mt-1" value={newClient.nom} onChange={e => setNewClient({...newClient, nom: e.target.value})} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-xs font-bold text-slate-400 uppercase ml-1">Libellé Client (ERP / n8n)</label>
+            <input type="text" placeholder="ex: OPH DRANCY - Agence Nord" className="w-full p-2.5 border rounded-xl mt-1" value={newClient.libelle_client} onChange={e => setNewClient({...newClient, libelle_client: e.target.value})} />
+          </div>
           <input type="text" required placeholder="Code ERP" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.codeClient} onChange={e => setNewClient({...newClient, codeClient: e.target.value})} />
           <input type="text" placeholder="Type Affaire" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.typeAffaire} onChange={e => setNewClient({...newClient, typeAffaire: e.target.value})} />
           <input type="text" placeholder="Code BPU" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.bpu} onChange={e => setNewClient({...newClient, bpu: e.target.value})} />
           
-          <div className="md:col-span-4">
+          <div className="md:col-span-1">
              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Poseur par défaut</label>
              <select 
-                className="w-full p-2.5 border rounded-xl bg-slate-50"
+                className="w-full p-2.5 border rounded-xl bg-slate-50 mt-1"
                 value={newClient.default_poseur}
                 onChange={e => setNewClient({...newClient, default_poseur: e.target.value})}
              >
-                <option value="">-- Aucun poseur assigné --</option>
+                <option value="">-- Aucun --</option>
                 {poseurs.map(p => (
-                    <option key={p.id} value={p.id}>{p.nom} {p.type ? `(${p.type})` : ''}</option>
+                    <option key={p.id} value={p.id}>{p.nom}</option>
                 ))}
              </select>
           </div>
@@ -125,7 +134,7 @@ const AdminClients: React.FC = () => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Nom PDF</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Nom PDF / Libellé</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Code ERP</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Type / Poseur</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">BPU</th>
@@ -136,7 +145,17 @@ const AdminClients: React.FC = () => {
             {clients.map(c => (
               <tr key={c.id} className="hover:bg-slate-50/80">
                 <td className="px-6 py-4">
-                  {editingId === c.id ? <input type="text" className="w-full p-2 border rounded" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} /> : <span className="font-bold">{c.nom}</span>}
+                  {editingId === c.id ? (
+                      <div className="space-y-2">
+                          <input type="text" className="w-full p-2 border rounded text-xs" placeholder="Nom PDF" value={editForm.nom} onChange={e => setEditForm({...editForm, nom: e.target.value})} />
+                          <input type="text" className="w-full p-2 border rounded text-xs" placeholder="Libellé ERP" value={editForm.libelle_client} onChange={e => setEditForm({...editForm, libelle_client: e.target.value})} />
+                      </div>
+                  ) : (
+                      <div className="flex flex-col">
+                          <span className="font-bold text-slate-800">{c.nom}</span>
+                          {c.libelle_client && <span className="text-[10px] text-blue-600 font-bold italic">{c.libelle_client}</span>}
+                      </div>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.codeClient} onChange={e => setEditForm({...editForm, codeClient: e.target.value})} /> : <code className="bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold">{c.codeClient}</code>}

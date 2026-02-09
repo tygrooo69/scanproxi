@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -164,6 +165,7 @@ app.get('/api/bootstrap', async (req, res) => {
       clients: clientsReq.map(c => ({ 
         id: c.id, 
         nom: c.nom, 
+        libelle_client: c.libelle_client,
         codeClient: c.codeClient, 
         typeAffaire: c.typeAffaire,
         bpu: c.bpu,

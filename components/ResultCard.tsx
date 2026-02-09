@@ -5,6 +5,8 @@ interface ResultCardProps {
   data: ConstructionOrderData;
   onReset: () => void;
   mappedClient: Client | null;
+  potentialClients?: Client[]; // Liste de tous les clients avec le même nom
+  onClientMatchUpdate?: (clientId: string) => void; // Callback pour changer de compte client
   chantierNumber: string | null;
   isFetchingChantier: boolean;
   onUpdate: (updates: Partial<ConstructionOrderData>) => void;
@@ -16,12 +18,10 @@ interface ResultCardProps {
   isTransmitting: boolean;
   transmitStatus: 'idle' | 'success' | 'error';
   
-  // Nouveaux Props pour la validation RDV
   tentativeEvent: CalendarEvent | null;
   isRdvSaved: boolean;
   onValidateRdv: () => void;
   
-  // Layout control
   isCalendarVisible?: boolean;
   onToggleCalendar?: () => void;
 }
@@ -30,6 +30,8 @@ const ResultCard: React.FC<ResultCardProps> = ({
     data, 
     onReset, 
     mappedClient, 
+    potentialClients = [],
+    onClientMatchUpdate,
     chantierNumber, 
     isFetchingChantier, 
     onUpdate,
@@ -73,7 +75,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
     { key: "delai_intervention", label: "Délai / RDV Agenda", icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
 
-  // Helper pour afficher la date lisiblement dans le bouton
   const getButtonDateLabel = () => {
     if (!tentativeEvent) return "";
     const d = new Date(tentativeEvent.start);
@@ -89,7 +90,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
         </h2>
         
         <div className="flex items-center gap-3">
-             {/* Bouton pour réafficher l'agenda si masqué */}
              {!isCalendarVisible && onToggleCalendar && (
                 <button 
                   onClick={onToggleCalendar}
@@ -126,7 +126,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-               {/* BOUTON VALIDATION DATE (NOUVEAU) */}
                {!isRdvSaved && tentativeEvent && (
                   <button 
                     onClick={onValidateRdv}
@@ -140,7 +139,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
                   </button>
                )}
 
-               {/* Indicateur si sauvegardé */}
                {isRdvSaved && (
                    <div className="px-4 py-2 rounded-xl bg-white border border-emerald-200 text-emerald-700 font-bold text-xs flex items-center gap-2 shadow-sm">
                       <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -170,9 +168,20 @@ const ResultCard: React.FC<ResultCardProps> = ({
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
              <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire</p>
-                <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block">
-                  <span className="font-mono font-black text-slate-700">{mappedClient.typeAffaire || 'Standard'}</span>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire / Compte</p>
+                <div className="relative">
+                    <select
+                        value={mappedClient.id}
+                        onChange={(e) => onClientMatchUpdate?.(e.target.value)}
+                        className="w-full font-bold text-slate-800 text-sm tracking-wide bg-white border border-emerald-300 px-2 py-1.5 rounded shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+                    >
+                        {potentialClients.map(c => (
+                            <option key={c.id} value={c.id}>
+                                {c.typeAffaire || 'Compte Standard'}
+                            </option>
+                        ))}
+                    </select>
+                    <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
                 </div>
              </div>
              <div>
@@ -224,12 +233,11 @@ const ResultCard: React.FC<ResultCardProps> = ({
           <i className="fas fa-exclamation-circle text-slate-400"></i>
           <p className="text-xs text-slate-500 font-medium">
             Aucun mapping client trouvé pour "<span className="font-bold">{data.nom_client || 'Inconnu'}</span>". 
-            Rendez-vous dans l'onglet <span className="font-bold underline">Clients</span> pour l'ajouter ou corrigez le nom ci-dessous.
+            Rendez-vous dans l'onglet <span className="font-bold underline">Clients</span> pour l'ajouter.
           </p>
         </div>
       )}
 
-      {/* Reste du code inchangé ... */}
       <div className="mx-6 mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl focus-within:ring-2 focus-within:ring-blue-200 transition-all">
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-tools text-blue-500 text-xs"></i>
