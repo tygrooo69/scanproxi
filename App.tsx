@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
 import { fetchStorageConfig } from './services/configService';
@@ -31,9 +30,12 @@ const App: React.FC = () => {
 
   // Data enrichment states
   const [mappedClient, setMappedClient] = useState<Client | null>(null);
-  const [potentialClients, setPotentialClients] = useState<Client[]>([]); // Liste des clients avec le même nom
+  const [potentialClients, setPotentialClients] = useState<Client[]>([]); 
   const [autoChantierNumber, setAutoChantierNumber] = useState<string | null>(null);
   const [isFetchingChantier, setIsFetchingChantier] = useState(false);
+  
+  // On garde une référence du nom original extrait du PDF pour la recherche
+  const rawExtractedNameRef = useRef<string | null>(null);
   
   // Trigger pour forcer le re-calcul du mapping (Client/Poseur) au changement de vue
   const [refreshDataTrigger, setRefreshDataTrigger] = useState(0);
@@ -89,7 +91,10 @@ const App: React.FC = () => {
   
   // 1. Détection automatique du Client (Gestion Multi-Affaires)
   useEffect(() => {
-    if (!extractedData?.nom_client) {
+    // On utilise la ref pour la recherche, sinon la valeur actuelle du champ (si on vient de scanner)
+    const nameToSearch = rawExtractedNameRef.current || extractedData?.nom_client;
+    
+    if (!nameToSearch) {
       setMappedClient(null);
       setPotentialClients([]);
       return;
@@ -100,12 +105,11 @@ const App: React.FC = () => {
 
     try {
       const clients: Client[] = JSON.parse(saved);
-      const searchName = extractedData.nom_client.toLowerCase().trim();
+      const searchName = nameToSearch.toLowerCase().trim();
       
-      // On récupère TOUS les clients dont le nom matche
+      // On récupère TOUS les clients dont le NOM PDF (c.nom) matche
       const matches = clients.filter(c => {
         const clientRefNom = c.nom.toLowerCase().trim();
-        // Matching sur Nom PDF original
         return searchName === clientRefNom || 
                searchName.includes(clientRefNom) || 
                clientRefNom.includes(searchName);
@@ -113,7 +117,6 @@ const App: React.FC = () => {
       
       setPotentialClients(matches);
 
-      // Si on a des matches, on sélectionne le premier par défaut
       if (matches.length > 0) {
           const isCurrentStillValid = mappedClient && matches.some(m => m.id === mappedClient.id);
           if (!isCurrentStillValid) {
@@ -128,11 +131,14 @@ const App: React.FC = () => {
     }
   }, [extractedData?.nom_client, refreshDataTrigger]);
 
-  // Logic pour écraser nom_client par libelle_client
+  // Application du libellé client sur les données extraites
   useEffect(() => {
-    if (mappedClient?.libelle_client && extractedData && extractedData.nom_client !== mappedClient.libelle_client) {
-        setExtractedData(prev => prev ? ({ ...prev, nom_client: mappedClient.libelle_client! }) : null);
-        addLog('info', `Application libellé client : ${mappedClient.libelle_client}`);
+    if (mappedClient && extractedData) {
+        const targetLibelle = mappedClient.libelle_client || mappedClient.nom;
+        if (extractedData.nom_client !== targetLibelle) {
+            setExtractedData(prev => prev ? ({ ...prev, nom_client: targetLibelle }) : null);
+            addLog('info', `Client mappé : ${targetLibelle}`);
+        }
     }
   }, [mappedClient, addLog]);
 
@@ -143,13 +149,11 @@ const App: React.FC = () => {
     let assignedPoseur: Poseur | undefined;
     let method = '';
 
-    // Priorité 1 : Poseur directement lié au client (nouveau champ)
     if (mappedClient.default_poseur && allPoseurs.length > 0) {
         assignedPoseur = allPoseurs.find(p => p.id === mappedClient.default_poseur);
         method = 'Lien Client';
     } 
     
-    // Priorité 2 (Fallback) : Matching par type d'affaire
     if (!assignedPoseur && mappedClient.typeAffaire && allPoseurs.length > 0) {
         assignedPoseur = allPoseurs.find(p => p.type === mappedClient.typeAffaire);
         method = 'Type Affaire';
@@ -161,7 +165,7 @@ const App: React.FC = () => {
     }
   }, [mappedClient, allPoseurs, addLog]);
 
-  // 3. Récupération automatique du numéro d'affaire via Webhook (Se déclenche au changement de mappedClient)
+  // 3. Récupération automatique du numéro d'affaire via Webhook
   useEffect(() => {
     const fetchChantier = async () => {
       if (!mappedClient) {
@@ -173,10 +177,9 @@ const App: React.FC = () => {
       if (!url) return;
 
       setIsFetchingChantier(true);
-      setAutoChantierNumber(null); // Reset pendant le chargement
+      setAutoChantierNumber(null); 
       
       try {
-        console.log(`📡 Appel Webhook Auto pour ${mappedClient.nom} (${mappedClient.typeAffaire})...`);
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -220,7 +223,7 @@ const App: React.FC = () => {
       const selected = potentialClients.find(c => c.id === clientId);
       if (selected) {
           setMappedClient(selected);
-          addLog('info', `Changement de Type Affaire : ${selected.typeAffaire}`);
+          addLog('info', `Changement de compte : ${selected.libelle_client || selected.nom} (${selected.typeAffaire})`);
       }
   };
 
@@ -290,7 +293,11 @@ const App: React.FC = () => {
       formData.append('codeClient', mappedClient?.codeClient || '');
       formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
       formData.append('client_bpu', mappedClient?.bpu || '');
-      formData.append('client_nom', mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '');
+      
+      // TRANSMISSION DU LIBELLE CLIENT PRIORITAIRE
+      const finalClientLabel = mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '';
+      formData.append('client_nom', finalClientLabel);
+      
       formData.append('num_chantier', chantier);
       formData.append('imputation', imputation);
       formData.append('source', "BuildScan AI");
@@ -312,7 +319,7 @@ const App: React.FC = () => {
         formData.append('poseur_type', selectedPoseur.type || '');
       }
 
-      addLog('request', `Envoi vers n8n...`, { imputation, poseur: selectedPoseur?.nom });
+      addLog('request', `Envoi vers n8n...`, { imputation, poseur: selectedPoseur?.nom, client: finalClientLabel });
 
       try {
         const response = await fetch(webhookUrl, {
@@ -386,6 +393,7 @@ const App: React.FC = () => {
     setPotentialClients([]);
     setAutoChantierNumber(null);
     setOriginalFile(file);
+    rawExtractedNameRef.current = null; // Reset ref
     clearLogs();
     setTentativeEvent(null);
     setIsRdvSaved(false);
@@ -407,11 +415,14 @@ const App: React.FC = () => {
       const base64Data = await base64Promise;
       const data = await analyzeConstructionDocument(base64Data, file.type);
       
+      // On sauvegarde le nom brut AVANT toute modification pour la clé de recherche
+      rawExtractedNameRef.current = data.nom_client;
+      
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
       setIsSidebarOpen(false); 
       setIsHeaderVisible(false);
-      addLog('success', 'Extraction IA terminée avec succès.', { client: data.nom_client });
+      addLog('success', 'Extraction IA terminée.', { pdf_client: data.nom_client });
     } catch (err: any) {
       console.error("Analyse échouée:", err);
       let msg = err.message || "Une erreur inconnue est survenue.";
@@ -428,6 +439,7 @@ const App: React.FC = () => {
     setMappedClient(null);
     setPotentialClients([]);
     setAutoChantierNumber(null);
+    rawExtractedNameRef.current = null;
     setError(null);
     setOriginalFile(null);
     setSelectedPoseurId("");
@@ -555,6 +567,7 @@ const App: React.FC = () => {
                               onValidateRdv={handleSaveRdv}
                               isCalendarVisible={isCalendarVisible}
                               onToggleCalendar={() => setIsCalendarVisible(!isCalendarVisible)}
+                              rawPdfClientName={rawExtractedNameRef.current}
                           />
                         </div>
                         {isCalendarVisible && (

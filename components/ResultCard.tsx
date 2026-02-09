@@ -5,8 +5,8 @@ interface ResultCardProps {
   data: ConstructionOrderData;
   onReset: () => void;
   mappedClient: Client | null;
-  potentialClients?: Client[]; // Liste de tous les clients avec le même nom
-  onClientMatchUpdate?: (clientId: string) => void; // Callback pour changer de compte client
+  potentialClients?: Client[]; 
+  onClientMatchUpdate?: (clientId: string) => void; 
   chantierNumber: string | null;
   isFetchingChantier: boolean;
   onUpdate: (updates: Partial<ConstructionOrderData>) => void;
@@ -24,6 +24,8 @@ interface ResultCardProps {
   
   isCalendarVisible?: boolean;
   onToggleCalendar?: () => void;
+  
+  rawPdfClientName?: string | null; // Nouveau prop pour info
 }
 
 const ResultCard: React.FC<ResultCardProps> = ({ 
@@ -45,7 +47,8 @@ const ResultCard: React.FC<ResultCardProps> = ({
     isRdvSaved,
     onValidateRdv,
     isCalendarVisible = true,
-    onToggleCalendar
+    onToggleCalendar,
+    rawPdfClientName
 }) => {
   
   const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
@@ -70,7 +73,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
 
   const fields = [
     { key: "num_bon_travaux", label: "Numéro de Bon", icon: "fa-hashtag", color: "text-blue-600" },
-    { key: "nom_client", label: "Nom Client (PDF)", icon: "fa-building", color: "text-indigo-600" },
+    { key: "nom_client", label: mappedClient ? "Libellé Client (ERP)" : "Nom Client (PDF)", icon: "fa-building", color: mappedClient ? "text-emerald-600" : "text-indigo-600" },
     { key: "date_intervention", label: "Date du Document", icon: "fa-file-signature", color: "text-purple-600" },
     { key: "delai_intervention", label: "Délai / RDV Agenda", icon: "fa-calendar-alt", color: "text-orange-600" },
   ];
@@ -116,11 +119,14 @@ const ResultCard: React.FC<ResultCardProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Lien ERP SAMDB Actif</p>
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Compte ERP SAMDB Actif</p>
                   <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">Match</span>
                 </div>
-                <p className="text-lg font-black text-slate-800">
-                  Code Client : <span className="text-emerald-700 font-mono">{mappedClient.codeClient}</span>
+                <p className="text-lg font-black text-slate-800 leading-tight">
+                  {mappedClient.libelle_client || mappedClient.nom}
+                </p>
+                <p className="text-xs text-emerald-700 font-bold uppercase tracking-tight mt-1">
+                   Code : <span className="font-mono">{mappedClient.codeClient}</span>
                 </p>
               </div>
             </div>
@@ -158,9 +164,9 @@ const ResultCard: React.FC<ResultCardProps> = ({
                   {isTransmitting ? (
                       <><i className="fas fa-spinner fa-spin"></i> Envoi...</>
                   ) : transmitStatus === 'success' ? (
-                      <><i className="fas fa-check"></i> Enregistrement réussi</>
+                      <><i className="fas fa-check"></i> Envoyé</>
                   ) : (
-                      <><i className="fas fa-save text-lg"></i> Enregistrement</>
+                      <><i className="fas fa-paper-plane text-lg"></i> Transmettre</>
                   )}
                 </button>
             </div>
@@ -168,7 +174,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
              <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Type Affaire / Compte</p>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Changement de Compte</p>
                 <div className="relative">
                     <select
                         value={mappedClient.id}
@@ -177,7 +183,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
                     >
                         {potentialClients.map(c => (
                             <option key={c.id} value={c.id}>
-                                {c.typeAffaire || 'Compte Standard'}
+                                {c.typeAffaire || 'Std'} - {c.libelle_client || c.nom}
                             </option>
                         ))}
                     </select>
@@ -191,10 +197,10 @@ const ResultCard: React.FC<ResultCardProps> = ({
                 </div>
              </div>
              <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire Webhook</p>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire</p>
                 {isFetchingChantier ? (
                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold animate-pulse">
-                     <i className="fas fa-circle-notch fa-spin"></i> Récupération...
+                     <i className="fas fa-circle-notch fa-spin"></i> ...
                    </div>
                 ) : chantierNumber ? (
                   <div className="flex items-center gap-2">
@@ -204,7 +210,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
                      <i className="fas fa-check text-emerald-500"></i>
                   </div>
                 ) : (
-                   <span className="text-[10px] text-emerald-500 italic">Non disponible</span>
+                   <span className="text-[10px] text-emerald-500 italic">N/A</span>
                 )}
              </div>
 
@@ -323,16 +329,25 @@ const ResultCard: React.FC<ResultCardProps> = ({
           <div key={field.key} className="space-y-1">
             <div className="flex items-center gap-2 mb-1">
               <i className={`fas ${field.icon} ${field.color} w-4`}></i>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{field.label}</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                 {field.label}
+              </span>
             </div>
-            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all focus-within:bg-white focus-within:border-slate-300 border-l-4 border-l-slate-200`}>
-              <input
-                type="text"
-                value={(data as any)[field.key] || ""}
-                onChange={(e) => handleInputChange(field.key as keyof ConstructionOrderData, e.target.value)}
-                className="bg-transparent border-none p-0 w-full font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 placeholder:italic"
-                placeholder="Non renseigné"
-              />
+            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all focus-within:bg-white focus-within:border-slate-300 border-l-4 ${mappedClient && field.key === 'nom_client' ? 'border-l-emerald-400' : 'border-l-slate-200'}`}>
+              <div className="w-full">
+                <input
+                    type="text"
+                    value={(data as any)[field.key] || ""}
+                    onChange={(e) => handleInputChange(field.key as keyof ConstructionOrderData, e.target.value)}
+                    className="bg-transparent border-none p-0 w-full font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 placeholder:italic"
+                    placeholder="Non renseigné"
+                />
+                {field.key === 'nom_client' && rawPdfClientName && mappedClient && (
+                    <div className="text-[9px] text-slate-400 mt-0.5 font-bold uppercase flex items-center gap-1">
+                        <i className="fas fa-file-pdf"></i> PDF Original : {rawPdfClientName}
+                    </div>
+                )}
+              </div>
             </div>
           </div>
         ))}
