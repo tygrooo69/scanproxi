@@ -417,7 +417,10 @@ const App: React.FC = () => {
     clearLogs();
     setTentativeEvent(null);
     setIsRdvSaved(false);
-    setIsCalendarVisible(true);
+    
+    // NOUVEAU: On réinitialise l'agenda et on le masque pour libérer de la place pour le PDF
+    setIsCalendarVisible(false);
+    setIsSidebarOpen(false); // On ferme la sidebar car le PDF sera dans le contenu principal
     
     // Reset transmission state for new file
     setTransmitStatus('idle');
@@ -443,7 +446,6 @@ const App: React.FC = () => {
       
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
-      setIsSidebarOpen(false); 
       setIsHeaderVisible(false);
       addLog('success', 'Extraction IA terminée.', { pdf_client: data.nom_client });
     } catch (err: any) {
@@ -530,13 +532,15 @@ const App: React.FC = () => {
                       <div className="flex justify-between items-center mb-2">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aperçu</p>
                       </div>
-                      <div onDoubleClick={handlePdfDoubleClick} className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner cursor-zoom-in hover:ring-2 hover:ring-blue-400 transition-all"><iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none pointer-events-none" /></div>
+                      <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-100 min-h-[500px] flex items-center justify-center shadow-inner hover:ring-2 hover:ring-blue-400 transition-all">
+                        <iframe src={`${filePreviewUrl}#toolbar=0`} title="PDF Preview" className="w-full h-[500px] border-none" />
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {!isSidebarOpen && (
+              {!isSidebarOpen && status !== AppStatus.SUCCESS && (
                  <div className="absolute left-4 top-24 z-40"><button onClick={() => setIsSidebarOpen(true)} className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"><i className="fas fa-file-pdf"></i></button></div>
               )}
 
@@ -571,8 +575,26 @@ const App: React.FC = () => {
 
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                        <div className={`transition-all duration-300 ${isCalendarVisible ? '' : 'xl:col-span-2'}`}>
+                    <div className={`grid gap-6 items-start ${isCalendarVisible ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 xl:grid-cols-2'}`}>
+                        {/* PDF SCAN À GAUCHE (NOUVEAU) */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[850px] animate-in slide-in-from-left-4 duration-500">
+                          <div className="bg-slate-800 text-white px-4 py-2 flex items-center justify-between shrink-0">
+                            <span className="text-[10px] font-black uppercase tracking-widest"><i className="fas fa-file-pdf mr-2"></i> Document Source (Interactif)</span>
+                            <div className="flex items-center gap-2">
+                               <button onClick={handlePdfDoubleClick} className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded font-bold uppercase transition-colors">Plein Écran</button>
+                            </div>
+                          </div>
+                          <div className="flex-grow bg-slate-100 relative">
+                             <iframe 
+                               src={`${filePreviewUrl}#navpanes=0&scrollbar=1`} 
+                               className="w-full h-full border-none" 
+                               title="PDF View Interactive"
+                             />
+                          </div>
+                        </div>
+
+                        {/* FORMULAIRE AU CENTRE/DROITE */}
+                        <div className="h-full">
                           <ResultCard 
                               data={extractedData} 
                               onReset={reset} 
@@ -596,8 +618,10 @@ const App: React.FC = () => {
                               rawPdfClientName={rawExtractedNameRef.current}
                           />
                         </div>
+
+                        {/* AGENDA À DROITE (SI ACTIF) */}
                         {isCalendarVisible && (
-                          <div className="h-full min-h-[600px] animate-in fade-in slide-in-from-right-4 duration-300">
+                          <div className="h-[850px] animate-in fade-in slide-in-from-right-4 duration-300">
                               <CalendarManager 
                                   poseurs={allPoseurs}
                                   selectedPoseurId={selectedPoseurId}
