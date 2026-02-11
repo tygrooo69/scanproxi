@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
+
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Poseur, NextcloudConfig, ConstructionOrderData, LogEntry, CalendarEvent } from '../types';
 
 interface CalendarManagerProps {
@@ -42,6 +43,9 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Pour éviter les boucles d'update infinies lors de l'édition manuelle
+  const lastAutoUpdateValue = useRef<string | null>(null);
+
   const nextcloudConfigString = localStorage.getItem('buildscan_nextcloud');
   const nextcloudConfig: NextcloudConfig | null = nextcloudConfigString ? JSON.parse(nextcloudConfigString) : null;
   
@@ -56,13 +60,10 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
 
   // Déterminer la date du chantier pour l'affichage initial
   const jobDate = useMemo(() => {
-    // Si delai_intervention contient une heure (format HHhMM), on ignore pour trouver la date de base
-    // Le regex cherche JJ/MM/AAAA
     const dateStr = data.delai_intervention || data.date_intervention;
     if (!dateStr) return new Date();
     const parts = dateStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
     if (parts) {
-      // On initialise à 8h30 par défaut
       return new Date(parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]), 8, 30, 0);
     }
     const d = new Date();
@@ -76,7 +77,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     
     setIsLoading(true);
     setFetchError(null);
-    // onAddLog('request', `Sync Nextcloud: Récupération agenda...`);
 
     try {
       const res = await fetch('/api/calendar/events', {
@@ -177,10 +177,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     let tentative: CalendarEvent | null = null;
     let savedFound = false;
 
-    // Vérifier si le bon de travail est DÉJÀ dans l'agenda
     if (data.num_bon_travaux && events.length > 0) {
-        // Recherche un événement qui contient le numéro de bon dans le titre ou la description
-        // On nettoie le num bon pour éviter les erreurs de format
         const cleanBon = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
         
         const existingEvent = events.find(e => {
@@ -194,13 +191,10 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
         }
     }
 
-    // Notifier le parent si c'est sauvegardé ou non
-    // On utilise un timeout pour éviter l'update pendant le render
     setTimeout(() => {
         if (onRdvStatusChange) onRdvStatusChange(savedFound);
     }, 0);
 
-    // Si pas sauvegardé, on propose un créneau (Tetris)
     if (!savedFound && data.nom_client) {
       
       const slot = findNextAvailableSlot(jobDate, list);
@@ -226,21 +220,19 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
       list.push(tentative);
     }
 
-    // Notifier le parent du changement de tentative (pour le bouton Validation)
     setTimeout(() => {
         if (onTentativeChange) onTentativeChange(tentative);
     }, 0);
 
     return list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  }, [events, data, jobDate, chantierNumber]); // Dependancies
+  }, [events, data.num_bon_travaux, data.nom_client, jobDate, chantierNumber]); 
 
-  // Update du délai d'intervention (Synchro inverse Agenda -> Extraction)
+  // Update du délai d'intervention (Synchro Agenda -> Extraction)
   useEffect(() => {
       if (!onUpdate || !data.nom_client) return;
 
       let targetEvent: CalendarEvent | undefined;
 
-      // 1. Priorité : Événement déjà enregistré (Confirmé)
       if (data.num_bon_travaux) {
           const cleanBon = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
           if (cleanBon.length > 3) {
@@ -253,7 +245,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
           }
       }
 
-      // 2. Fallback : Événement Tentative
       if (!targetEvent) {
           targetEvent = displayEvents.find(e => e.isTentative);
       }
@@ -268,11 +259,15 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
           
           const formattedString = `${day}/${month}/${year} ${hour}h${min}`;
           
-          if (data.delai_intervention !== formattedString) {
+          // N'UPDATE QUE SI: 
+          // 1. La valeur calculée change réellement par rapport à notre DERNIER auto-update
+          // 2. Le champ n'a pas été modifié manuellement de manière arbitraire (si c'est vide par ex)
+          if (lastAutoUpdateValue.current !== formattedString) {
               onUpdate({ delai_intervention: formattedString });
+              lastAutoUpdateValue.current = formattedString;
           }
       }
-  }, [displayEvents, data.num_bon_travaux, data.delai_intervention, data.nom_client, onUpdate]);
+  }, [displayEvents, data.num_bon_travaux, data.nom_client, onUpdate]);
 
   // Gestion des jours semaine
   const weekDays = useMemo(() => {
@@ -350,7 +345,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
     }
   };
 
-  // Helper pour vérifier si un event est celui enregistré pour ce bon
   const isSavedEvent = (evt: CalendarEvent) => {
       if (evt.isTentative) return false;
       if (!data.num_bon_travaux) return false;
@@ -371,7 +365,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
   return (
     <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800 h-full flex flex-col relative">
        
-       {/* HEADER */}
        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-sky-600/20 text-sky-400 rounded flex items-center justify-center">
@@ -419,7 +412,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
           </div>
        </div>
 
-       {/* CALENDRIER */}
        <div className="flex-grow flex flex-col overflow-hidden bg-slate-950">
          {!selectedPoseur ? (
             <div className="flex-grow flex flex-col items-center justify-center text-center p-4">
@@ -464,7 +456,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
                                                 evt.isTentative 
                                                 ? 'bg-orange-500/10 border-orange-500 text-orange-200 animate-pulse hover:animate-none' 
                                                 : saved
-                                                    ? 'bg-emerald-600 border-emerald-400 text-white animate-pulse' // STYLE VERT CLIGNOTANT ICI
+                                                    ? 'bg-emerald-600 border-emerald-400 text-white animate-pulse'
                                                     : 'bg-slate-800 border-sky-600 text-slate-300'
                                             }`}
                                         >
@@ -486,7 +478,6 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({
          )}
        </div>
 
-       {/* MODALE D'EDITION */}
        {isModalOpen && editingEvent && (
           <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
              <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-xl shadow-2xl flex flex-col max-h-[90%] overflow-y-auto">

@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { ConstructionOrderData, Client, Poseur, CalendarEvent } from '../types';
 
@@ -70,6 +71,13 @@ const ResultCard: React.FC<ResultCardProps> = ({
         }
     }
   }, [data.date_intervention]);
+
+  const categories = [
+    { code: "01", label: "01 Locataire" },
+    { code: "02", label: "02 Parties communes" },
+    { code: "03", label: "03 Logement vacant" },
+    { code: "04", label: "04 Maintenance" }
+  ];
 
   const fields = [
     { key: "num_bon_travaux", label: "Numéro de Bon", icon: "fa-hashtag", color: "text-blue-600" },
@@ -172,30 +180,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
-             <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Changement de Compte</p>
-                <div className="relative">
-                    <select
-                        value={mappedClient.id}
-                        onChange={(e) => onClientMatchUpdate?.(e.target.value)}
-                        className="w-full font-bold text-slate-800 text-sm tracking-wide bg-white border border-emerald-300 px-2 py-1.5 rounded shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
-                    >
-                        {potentialClients.map(c => (
-                            <option key={c.id} value={c.id}>
-                                {c.typeAffaire || 'Std'} - {c.libelle_client || c.nom}
-                            </option>
-                        ))}
-                    </select>
-                    <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
-                </div>
-             </div>
-             <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
-                <div className="bg-white/60 border border-emerald-200 rounded px-2 py-1 inline-block min-w-[60px]">
-                  <span className="font-mono font-black text-slate-700">{mappedClient.bpu || '-'}</span>
-                </div>
-             </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t border-emerald-200 pt-3">
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire</p>
                 {isFetchingChantier ? (
@@ -207,11 +192,30 @@ const ResultCard: React.FC<ResultCardProps> = ({
                      <span className="font-mono font-black text-slate-800 text-lg tracking-wide bg-white border border-emerald-300 px-2 rounded shadow-sm">
                        {chantierNumber}
                      </span>
-                     <i className="fas fa-check text-emerald-500"></i>
                   </div>
                 ) : (
                    <span className="text-[10px] text-emerald-500 italic">N/A</span>
                 )}
+             </div>
+
+             {/* NOUVEAU: CATEGORIE */}
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Catégorie</p>
+                <div className="relative">
+                    <select
+                        value={data.categorie || ""}
+                        onChange={(e) => handleInputChange('categorie', e.target.value)}
+                        className="w-full font-bold text-slate-800 text-sm tracking-wide bg-white border border-emerald-300 px-2 py-1.5 rounded shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+                    >
+                        <option value="">-- Sélection --</option>
+                        {categories.map(cat => (
+                            <option key={cat.code} value={cat.code}>
+                                {cat.label}
+                            </option>
+                        ))}
+                    </select>
+                    <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
+                </div>
              </div>
 
              <div>
@@ -231,6 +235,31 @@ const ResultCard: React.FC<ResultCardProps> = ({
                     </select>
                     <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
                  </div>
+             </div>
+
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
+                <div className="bg-white border border-emerald-300 rounded px-2 py-1.5 inline-block w-full">
+                  <span className="font-mono font-black text-slate-700 text-sm">{mappedClient.bpu || '-'}</span>
+                </div>
+             </div>
+
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Compte Client</p>
+                <div className="relative">
+                    <select
+                        value={mappedClient.id}
+                        onChange={(e) => onClientMatchUpdate?.(e.target.value)}
+                        className="w-full font-bold text-slate-800 text-sm tracking-wide bg-white border border-emerald-300 px-2 py-1.5 rounded shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+                    >
+                        {potentialClients.map(c => (
+                            <option key={c.id} value={c.id}>
+                                {c.typeAffaire || 'Std'} - {c.libelle_client || c.nom}
+                            </option>
+                        ))}
+                    </select>
+                    <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
+                </div>
              </div>
           </div>
         </div>
@@ -253,7 +282,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
           value={data.descriptif_travaux || ""}
           onChange={(e) => handleInputChange('descriptif_travaux', e.target.value)}
           rows={4}
-          className="w-full bg-white border border-blue-100 rounded-lg p-3 text-sm font-semibold text-slate-800 leading-relaxed focus:outline-none focus:border-blue-400 resize-y"
+          className="w-full bg-white border border-blue-100 rounded-lg p-3 text-sm font-semibold text-slate-800 leading-relaxed focus:outline-none focus:border-blue-400 resize-y shadow-inner"
           placeholder="Saisissez le descriptif des travaux..."
         />
       </div>
@@ -270,13 +299,13 @@ const ResultCard: React.FC<ResultCardProps> = ({
               { key: 'adresse_2', label: 'Ligne 2' },
               { key: 'adresse_3', label: 'Ligne 3' }
             ].map((addr) => (
-              <div key={addr.key} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col focus-within:bg-white focus-within:border-blue-200 transition-colors">
+              <div key={addr.key} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col focus-within:bg-white focus-within:border-blue-200 focus-within:ring-1 focus-within:ring-blue-200 transition-all">
                 <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">{addr.label}</span>
                 <input
                   type="text"
                   value={(data as any)[addr.key] || ""}
                   onChange={(e) => handleInputChange(addr.key as keyof ConstructionOrderData, e.target.value)}
-                  className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                  className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
                   placeholder="-"
                 />
               </div>
@@ -290,34 +319,34 @@ const ResultCard: React.FC<ResultCardProps> = ({
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact / Gardien</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 focus-within:ring-1 focus-within:ring-emerald-200 transition-all">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Nom</span>
                    <input
                      type="text"
                      value={data.gardien_nom || ""}
                      onChange={(e) => handleInputChange('gardien_nom', e.target.value)}
-                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
                      placeholder="-"
                    />
                 </div>
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 focus-within:ring-1 focus-within:ring-emerald-200 transition-all">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Téléphone</span>
                    <input
                      type="text"
                      value={data.gardien_tel || ""}
                      onChange={(e) => handleInputChange('gardien_tel', e.target.value)}
-                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
                      placeholder="-"
                    />
                    <i className="fas fa-phone absolute right-3 top-3 text-emerald-100 pointer-events-none"></i>
                 </div>
-                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 transition-colors">
+                <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 focus-within:ring-1 focus-within:ring-emerald-200 transition-all">
                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Email</span>
                    <input
                      type="text"
                      value={data.gardien_email || ""}
                      onChange={(e) => handleInputChange('gardien_email', e.target.value)}
-                     className="bg-transparent border-none p-0 text-sm font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
+                     className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 placeholder:text-slate-300 w-full"
                      placeholder="-"
                    />
                    <i className="fas fa-envelope absolute right-3 top-3 text-blue-100 pointer-events-none"></i>
@@ -333,13 +362,13 @@ const ResultCard: React.FC<ResultCardProps> = ({
                  {field.label}
               </span>
             </div>
-            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all focus-within:bg-white focus-within:border-slate-300 border-l-4 ${mappedClient && field.key === 'nom_client' ? 'border-l-emerald-400' : 'border-l-slate-200'}`}>
+            <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/50 min-h-[44px] flex items-center transition-all focus-within:bg-white focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100 border-l-4 ${mappedClient && field.key === 'nom_client' ? 'border-l-emerald-400' : 'border-l-slate-200'}`}>
               <div className="w-full">
                 <input
                     type="text"
                     value={(data as any)[field.key] || ""}
                     onChange={(e) => handleInputChange(field.key as keyof ConstructionOrderData, e.target.value)}
-                    className="bg-transparent border-none p-0 w-full font-medium text-slate-900 focus:ring-0 placeholder:text-slate-300 placeholder:italic"
+                    className="bg-transparent border-none p-0 w-full font-bold text-slate-900 focus:ring-0 placeholder:text-slate-300 placeholder:italic"
                     placeholder="Non renseigné"
                 />
                 {field.key === 'nom_client' && rawPdfClientName && mappedClient && (

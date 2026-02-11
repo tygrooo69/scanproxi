@@ -303,6 +303,7 @@ const App: React.FC = () => {
       formData.append('imputation', imputation);
       formData.append('num_bon_travaux', extractedData.num_bon_travaux || '');
       formData.append('nom_client_pdf', rawExtractedNameRef.current || extractedData.nom_client || '');
+      formData.append('categorie', extractedData.categorie || ''); // TRANSMISSION CATEGORIE
       
       // --- AJOUT DES CHAMPS SÉPARÉS (REQUIS PAR N8N) ---
       formData.append('adresse_1', extractedData.adresse_1 || '');
@@ -334,6 +335,7 @@ const App: React.FC = () => {
       addLog('request', `Envoi complet vers n8n...`, { 
         imputation, 
         client: finalClientLabel,
+        categorie: extractedData.categorie,
         has_adresse: !!extractedData.adresse_1,
         has_contact: !!extractedData.gardien_nom
       });
@@ -472,7 +474,6 @@ const App: React.FC = () => {
     setIsHeaderVisible(true);
     setIsCalendarVisible(true);
     
-    // Correction: Reset transmission state here
     setTransmitStatus('idle');
     setTransmitting(false);
   };

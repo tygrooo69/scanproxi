@@ -13,6 +13,7 @@ export interface ConstructionOrderData {
   delai_intervention: string | null;
   date_intervention: string | null;
   descriptif_travaux: string | null;
+  categorie: string | null; // Nouveau champ catégorie (01, 02, 03, 04)
 }
 
 export interface Poseur {
