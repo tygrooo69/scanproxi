@@ -200,7 +200,7 @@ const App: React.FC = () => {
 
           if (newNumber) {
             const cleanNumber = String(newNumber).replace(/\D/g, '');
-            const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
+            const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - length - 6) : cleanNumber.padStart(6, '0');
             setAutoChantierNumber(formattedNumber);
             addLog('response', `Numéro d'affaire récupéré : ${formattedNumber}`);
           }
@@ -296,8 +296,8 @@ const App: React.FC = () => {
       formData.append('codeClient', mappedClient?.codeClient || '');
       formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
       
-      // RÈGLE : BPU = CODE CLIENT (Transmis à n8n)
-      formData.append('client_bpu', mappedClient?.codeClient || '');
+      // RÈGLE : BPU = véritable code BPU du client (Transmis à n8n)
+      formData.append('client_bpu', mappedClient?.bpu || '');
       formData.append('client_nom', finalClientLabel);
       
       // INFOS CHANTIER
@@ -337,7 +337,7 @@ const App: React.FC = () => {
       addLog('request', `Envoi complet vers n8n...`, { 
         imputation, 
         client: finalClientLabel,
-        bpu: mappedClient?.codeClient,
+        bpu: mappedClient?.bpu,
         categorie: extractedData.categorie
       });
 

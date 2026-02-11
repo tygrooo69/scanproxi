@@ -180,7 +180,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t border-emerald-200 pt-3">
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire</p>
                 {isFetchingChantier ? (
@@ -234,6 +234,13 @@ const ResultCard: React.FC<ResultCardProps> = ({
                     </select>
                     <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
                  </div>
+             </div>
+
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
+                <div className="bg-white border border-emerald-300 rounded px-2 py-1.5 inline-block w-full">
+                  <span className="font-mono font-black text-slate-700 text-sm">{mappedClient.bpu || '-'}</span>
+                </div>
              </div>
 
              <div>
