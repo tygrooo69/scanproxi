@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { ConstructionOrderData, Client, Poseur, CalendarEvent } from '../types';
 
@@ -180,7 +179,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t border-emerald-200 pt-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t border-emerald-200 pt-3">
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Numéro Affaire</p>
                 {isFetchingChantier ? (
@@ -198,7 +197,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
                 )}
              </div>
 
-             {/* NOUVEAU: CATEGORIE */}
              <div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Catégorie</p>
                 <div className="relative">
@@ -235,13 +233,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
                     </select>
                     <i className="fas fa-chevron-down absolute right-2 top-2.5 text-emerald-500 text-xs pointer-events-none"></i>
                  </div>
-             </div>
-
-             <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Code BPU</p>
-                <div className="bg-white border border-emerald-300 rounded px-2 py-1.5 inline-block w-full">
-                  <span className="font-mono font-black text-slate-700 text-sm">{mappedClient.bpu || '-'}</span>
-                </div>
              </div>
 
              <div>
@@ -316,7 +307,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
         <div className="space-y-1 md:col-span-2">
            <div className="flex items-center gap-2 mb-1">
               <i className="fas fa-user-tie text-emerald-600 w-4"></i>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact / Gardien</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact / Gardien / Locataire</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex flex-col relative overflow-hidden focus-within:bg-white focus-within:border-emerald-200 focus-within:ring-1 focus-within:ring-emerald-200 transition-all">

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Client, Poseur } from '../types';
 import { fetchStorageConfig, addClient, updateClient, deleteClient } from '../services/configService';
@@ -108,7 +107,6 @@ const AdminClients: React.FC = () => {
           </div>
           <input type="text" required placeholder="Code ERP" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.codeClient} onChange={e => setNewClient({...newClient, codeClient: e.target.value})} />
           <input type="text" placeholder="Type Affaire" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.typeAffaire} onChange={e => setNewClient({...newClient, typeAffaire: e.target.value})} />
-          <input type="text" placeholder="Code BPU" className="w-full p-2.5 border rounded-xl font-mono" value={newClient.bpu} onChange={e => setNewClient({...newClient, bpu: e.target.value})} />
           
           <div className="md:col-span-1">
              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Poseur par défaut</label>
@@ -137,7 +135,6 @@ const AdminClients: React.FC = () => {
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Nom PDF / Libellé</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Code ERP</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Type / Poseur</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">BPU</th>
               <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Actions</th>
             </tr>
           </thead>
@@ -186,9 +183,6 @@ const AdminClients: React.FC = () => {
                           )}
                       </div>
                   )}
-                </td>
-                <td className="px-6 py-4">
-                  {editingId === c.id ? <input type="text" className="w-full p-2 border rounded font-mono" value={editForm.bpu} onChange={e => setEditForm({...editForm, bpu: e.target.value})} /> : <span className="font-mono text-slate-500">{c.bpu || '-'}</span>}
                 </td>
                 <td className="px-6 py-4 text-right flex justify-end gap-2">
                   {editingId === c.id ? (

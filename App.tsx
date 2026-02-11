@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
@@ -295,7 +294,9 @@ const App: React.FC = () => {
       // INFOS CLIENT (MAPPING ERP)
       formData.append('codeClient', mappedClient?.codeClient || '');
       formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
-      formData.append('client_bpu', mappedClient?.bpu || '');
+      
+      // RÈGLE : BPU = CODE CLIENT
+      formData.append('client_bpu', mappedClient?.codeClient || '');
       formData.append('client_nom', finalClientLabel);
       
       // INFOS CHANTIER

@@ -11,7 +11,7 @@ Instructions d'extraction :
 
 - gardien_nom : Extrait UNIQUEMENT le Nom et Prénom du gardien ou du contact sur place. (Ex: "M. Dupont", "Sophie Martin").
 - gardien_tel : Extrait UNIQUEMENT le numéro de téléphone du gardien ou contact. (Ex: "06 12 34 56 78").
-- gardien_email : Extrait l'adresse EMAIL du gardien ou du contact sur place. RÈGLE STRICTE : Ignore les emails commençant par "facture", "factures" ou "billing". Si aucune adresse valide n'est trouvée, renvoie une chaîne vide "".
+- gardien_email : RECHERCHE PARTOUT dans le document une adresse email. PRIORITÉ ABSOLUE : Si une adresse email est explicitement liée au LOCATAIRE (ex: mention "Email locataire" ou proche de ses coordonnées), prends-la. Sinon, prends celle du gardien ou du contact technique. RÈGLE STRICTE : Ignore les emails de facturation (commençant par "facture", "factures", "billing"). Si rien n'est trouvé, renvoie une chaîne vide "".
 
 - nom_client : Nom de l'entreprise ou du donneur d'ordre (ex: VILOGIA, OPH).
 - delai_intervention : Date limite d'intervention. S'il y a plusieurs dates ou une période (ex: "du 12/01 au 15/01"), garde UNIQUEMENT la PREMIÈRE date (la plus proche dans le temps).
@@ -34,7 +34,7 @@ const RESPONSE_SCHEMA = {
     
     gardien_nom: { type: Type.STRING, description: "Nom et Prénom du contact" },
     gardien_tel: { type: Type.STRING, description: "Téléphone du contact" },
-    gardien_email: { type: Type.STRING, description: "Email du contact (Hors facturation) ou vide" },
+    gardien_email: { type: Type.STRING, description: "Email du contact (priorité locataire) ou vide" },
 
     nom_client: { type: Type.STRING, description: "Nom du donneur d'ordre" },
     delai_intervention: { type: Type.STRING, description: "Délai de validité (Première date)" },
@@ -87,7 +87,6 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
     const data = JSON.parse(cleanJson) as ConstructionOrderData;
     
     // Post-traitement : Nettoyage du numéro de bon (suppression espaces et caractères spéciaux)
-    // On ne garde que les lettres et les chiffres
     if (data.num_bon_travaux) {
       data.num_bon_travaux = data.num_bon_travaux.replace(/[^a-zA-Z0-9]/g, '');
     }
@@ -97,12 +96,12 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
       data.descriptif_travaux = data.descriptif_travaux
         .toUpperCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Retire les accents
-        .replace(/[^A-Z0-9\s]/g, " ") // Ne garde que A-Z, 0-9 et Espaces (retire ponctuation, parenthèses etc)
+        .replace(/[^A-Z0-9\s]/g, " ") // Ne garde que A-Z, 0-9 et Espaces
         .replace(/\s+/g, " ") // Evite les doubles espaces
         .trim();
     }
 
-    // Sécurité supplémentaire pour tronquer les adresses si l'IA a halluciné > 40 chars
+    // Sécurité supplémentaire pour tronquer les adresses
     if (data.adresse_1) data.adresse_1 = data.adresse_1.substring(0, 40);
     if (data.adresse_2) data.adresse_2 = data.adresse_2.substring(0, 40);
     if (data.adresse_3) data.adresse_3 = data.adresse_3.substring(0, 40);
