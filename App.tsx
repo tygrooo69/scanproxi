@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
@@ -295,7 +296,7 @@ const App: React.FC = () => {
       formData.append('codeClient', mappedClient?.codeClient || '');
       formData.append('code_trv', mappedClient?.typeAffaire || 'O3-0');
       
-      // RÈGLE : BPU = CODE CLIENT
+      // RÈGLE : BPU = CODE CLIENT (Transmis à n8n)
       formData.append('client_bpu', mappedClient?.codeClient || '');
       formData.append('client_nom', finalClientLabel);
       
@@ -304,7 +305,7 @@ const App: React.FC = () => {
       formData.append('imputation', imputation);
       formData.append('num_bon_travaux', extractedData.num_bon_travaux || '');
       formData.append('nom_client_pdf', rawExtractedNameRef.current || extractedData.nom_client || '');
-      formData.append('categorie', extractedData.categorie || ''); // TRANSMISSION CATEGORIE
+      formData.append('categorie', extractedData.categorie || ''); 
       
       // --- AJOUT DES CHAMPS SÉPARÉS (REQUIS PAR N8N) ---
       formData.append('adresse_1', extractedData.adresse_1 || '');
@@ -336,9 +337,8 @@ const App: React.FC = () => {
       addLog('request', `Envoi complet vers n8n...`, { 
         imputation, 
         client: finalClientLabel,
-        categorie: extractedData.categorie,
-        has_adresse: !!extractedData.adresse_1,
-        has_contact: !!extractedData.gardien_nom
+        bpu: mappedClient?.codeClient,
+        categorie: extractedData.categorie
       });
 
       try {
@@ -418,11 +418,11 @@ const App: React.FC = () => {
     setTentativeEvent(null);
     setIsRdvSaved(false);
     
-    // NOUVEAU: On réinitialise l'agenda et on le masque pour libérer de la place pour le PDF
+    // NOUVEAU: On masque l'agenda à la fin du scan pour favoriser la vue Side-by-Side
     setIsCalendarVisible(false);
-    setIsSidebarOpen(false); // On ferme la sidebar car le PDF sera dans le contenu principal
+    setIsSidebarOpen(false); 
     
-    // Reset transmission state for new file
+    // Reset transmission state
     setTransmitStatus('idle');
     setTransmitting(false);
     
@@ -447,6 +447,8 @@ const App: React.FC = () => {
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
       setIsHeaderVisible(false);
+      // On s'assure que l'agenda est masqué après le scan réussi
+      setIsCalendarVisible(false);
       addLog('success', 'Extraction IA terminée.', { pdf_client: data.nom_client });
     } catch (err: any) {
       console.error("Analyse échouée:", err);
@@ -576,10 +578,10 @@ const App: React.FC = () => {
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
                     <div className={`grid gap-6 items-start ${isCalendarVisible ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 xl:grid-cols-2'}`}>
-                        {/* PDF SCAN À GAUCHE (NOUVEAU) */}
+                        {/* PDF SCAN À GAUCHE - INTERACTIF */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[850px] animate-in slide-in-from-left-4 duration-500">
                           <div className="bg-slate-800 text-white px-4 py-2 flex items-center justify-between shrink-0">
-                            <span className="text-[10px] font-black uppercase tracking-widest"><i className="fas fa-file-pdf mr-2"></i> Document Source (Interactif)</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest"><i className="fas fa-file-pdf mr-2"></i> Document Source</span>
                             <div className="flex items-center gap-2">
                                <button onClick={handlePdfDoubleClick} className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded font-bold uppercase transition-colors">Plein Écran</button>
                             </div>
@@ -593,7 +595,7 @@ const App: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* FORMULAIRE AU CENTRE/DROITE */}
+                        {/* FORMULAIRE DE RÉSULTATS */}
                         <div className="h-full">
                           <ResultCard 
                               data={extractedData} 
@@ -619,7 +621,7 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* AGENDA À DROITE (SI ACTIF) */}
+                        {/* AGENDA (SI ACTIVÉ PAR L'UTILISATEUR) */}
                         {isCalendarVisible && (
                           <div className="h-[850px] animate-in fade-in slide-in-from-right-4 duration-300">
                               <CalendarManager 
