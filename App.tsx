@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppStatus, ConstructionOrderData, AppView, Client, Poseur, LogEntry, CalendarEvent } from './types';
 import { analyzeConstructionDocument } from './services/geminiService';
@@ -200,7 +199,7 @@ const App: React.FC = () => {
 
           if (newNumber) {
             const cleanNumber = String(newNumber).replace(/\D/g, '');
-            const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - length - 6) : cleanNumber.padStart(6, '0');
+            const formattedNumber = cleanNumber.length > 6 ? cleanNumber.substring(cleanNumber.length - 6) : cleanNumber.padStart(6, '0');
             setAutoChantierNumber(formattedNumber);
             addLog('response', `Numéro d'affaire récupéré : ${formattedNumber}`);
           }
@@ -279,6 +278,13 @@ const App: React.FC = () => {
       setTransmitStatus('idle');
       const webhookUrl = localStorage.getItem('buildscan_webhook_url') || "";
       
+      if (!webhookUrl) {
+          addLog('error', 'URL Webhook manquante. Vérifiez les paramètres Admin.');
+          setTransmitStatus('error');
+          setTransmitting(false);
+          return;
+      }
+
       const chantier = autoChantierNumber || (extractedData.num_bon_travaux ? extractedData.num_bon_travaux.replace(/\D/g, '').substring(0, 6) : "000000");
       const imputation = `80${chantier}0`;
       
@@ -290,7 +296,7 @@ const App: React.FC = () => {
       const finalClientLabel = mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '';
 
       const formData = new FormData();
-      if (originalFile) formData.append('file', originalFile, 'document.pdf');
+      if (originalFile) formData.append('file', originalFile, originalFile.name || 'document.pdf');
       
       // INFOS CLIENT (MAPPING ERP)
       formData.append('codeClient', mappedClient?.codeClient || '');
@@ -298,6 +304,7 @@ const App: React.FC = () => {
       
       // RÈGLE : BPU = véritable code BPU du client (Transmis à n8n)
       formData.append('client_bpu', mappedClient?.bpu || '');
+      formData.append('bpu', mappedClient?.bpu || ''); // Double envoi pour sécurité clé n8n
       formData.append('client_nom', finalClientLabel);
       
       // INFOS CHANTIER
@@ -350,7 +357,7 @@ const App: React.FC = () => {
 
         if (response.ok && (result.success !== false)) {
           setTransmitStatus('success');
-          addLog('response', `Réponse n8n : ${result.message || 'Succès'}`);
+          addLog('success', `Transmission réussie à n8n.`, result);
         } else {
           throw new Error(result.message || `Erreur n8n : ${response.status}`);
         }
@@ -418,11 +425,9 @@ const App: React.FC = () => {
     setTentativeEvent(null);
     setIsRdvSaved(false);
     
-    // NOUVEAU: On masque l'agenda à la fin du scan pour favoriser la vue Side-by-Side
     setIsCalendarVisible(false);
     setIsSidebarOpen(false); 
     
-    // Reset transmission state
     setTransmitStatus('idle');
     setTransmitting(false);
     
@@ -447,7 +452,6 @@ const App: React.FC = () => {
       setExtractedData(data);
       setStatus(AppStatus.SUCCESS);
       setIsHeaderVisible(false);
-      // On s'assure que l'agenda est masqué après le scan réussi
       setIsCalendarVisible(false);
       addLog('success', 'Extraction IA terminée.', { pdf_client: data.nom_client });
     } catch (err: any) {
@@ -578,7 +582,6 @@ const App: React.FC = () => {
                 {extractedData && (
                   <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 space-y-6">
                     <div className={`grid gap-6 items-start ${isCalendarVisible ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 xl:grid-cols-2'}`}>
-                        {/* PDF SCAN À GAUCHE - INTERACTIF */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[850px] animate-in slide-in-from-left-4 duration-500">
                           <div className="bg-slate-800 text-white px-4 py-2 flex items-center justify-between shrink-0">
                             <span className="text-[10px] font-black uppercase tracking-widest"><i className="fas fa-file-pdf mr-2"></i> Document Source</span>
@@ -595,7 +598,6 @@ const App: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* FORMULAIRE DE RÉSULTATS */}
                         <div className="h-full">
                           <ResultCard 
                               data={extractedData} 
@@ -621,7 +623,6 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* AGENDA (SI ACTIVÉ PAR L'UTILISATEUR) */}
                         {isCalendarVisible && (
                           <div className="h-[850px] animate-in fade-in slide-in-from-right-4 duration-300">
                               <CalendarManager 
