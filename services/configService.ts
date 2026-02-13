@@ -1,11 +1,11 @@
-import { Client, Poseur, NextcloudConfig } from '../types';
+
+import { Client, Poseur } from '../types';
 
 export interface StorageConfig {
   webhook_url: string;
   client_webhook_url?: string;
   clients: Client[];
   poseurs: Poseur[];
-  nextcloud?: NextcloudConfig;
 }
 
 export interface DbConfig {
@@ -22,7 +22,6 @@ export interface WikiPage {
   updated: string;
 }
 
-// Fallback uniquement si le serveur est inaccessible et le cache vide
 const DEFAULT_CONFIG: StorageConfig = {
   webhook_url: "",
   client_webhook_url: "",
@@ -30,69 +29,43 @@ const DEFAULT_CONFIG: StorageConfig = {
   poseurs: []
 };
 
-/**
- * Récupère la configuration complète (Bootstrap)
- */
 export async function fetchStorageConfig(): Promise<StorageConfig | null> {
   try {
     const response = await fetch('/api/bootstrap');
-    // Si 503, c'est que la DB n'est pas connectée, mais le serveur répond.
-    // On veut quand même retourner null pour gérer l'état UI.
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
     const config: StorageConfig = await response.json();
-    
-    // Mise à jour du cache local
     localStorage.setItem('buildscan_webhook_url', config.webhook_url);
     if (config.client_webhook_url) {
       localStorage.setItem('buildscan_client_webhook_url', config.client_webhook_url);
     }
-    if (config.nextcloud) {
-      localStorage.setItem('buildscan_nextcloud', JSON.stringify(config.nextcloud));
-    }
-
     localStorage.setItem('buildscan_clients', JSON.stringify(config.clients));
     localStorage.setItem('buildscan_poseurs', JSON.stringify(config.poseurs));
     localStorage.setItem('buildscan_data_source', 'server');
     localStorage.setItem('buildscan_last_sync', new Date().toISOString());
-    
     return config;
   } catch (err) {
-    console.warn("API Inaccessible ou DB déconnectée, passage en mode cache/local :", err);
-    
     const cachedWebhook = localStorage.getItem('buildscan_webhook_url');
     const cachedClientWebhook = localStorage.getItem('buildscan_client_webhook_url');
     const cachedClients = localStorage.getItem('buildscan_clients');
     const cachedPoseurs = localStorage.getItem('buildscan_poseurs');
-    const cachedNextcloud = localStorage.getItem('buildscan_nextcloud');
 
     if (cachedWebhook || cachedClients) {
-      const offlineConfig: StorageConfig = {
+      return {
         webhook_url: cachedWebhook || "",
         client_webhook_url: cachedClientWebhook || "",
         clients: cachedClients ? JSON.parse(cachedClients) : [],
-        poseurs: cachedPoseurs ? JSON.parse(cachedPoseurs) : [],
-        nextcloud: cachedNextcloud ? JSON.parse(cachedNextcloud) : undefined
+        poseurs: cachedPoseurs ? JSON.parse(cachedPoseurs) : []
       };
-      
-      localStorage.setItem('buildscan_data_source', 'local_cache');
-      return offlineConfig;
     }
-
     return DEFAULT_CONFIG;
   }
 }
 
-// --- GESTION DB CONNECTION ---
-
 export async function getDbConfig(): Promise<DbConfig | null> {
   try {
     const res = await fetch('/api/admin/db-config');
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
+    return res.ok ? await res.json() : null;
+  } catch (e) { return null; }
 }
 
 export async function updateDbConfig(config: DbConfig): Promise<{ success: boolean; message?: string }> {
@@ -104,12 +77,9 @@ export async function updateDbConfig(config: DbConfig): Promise<{ success: boole
     });
     const data = await res.json();
     return { success: res.ok && data.success, message: data.message || data.error };
-  } catch (e: any) {
-    return { success: false, message: e.message };
-  }
+  } catch (e: any) { return { success: false, message: e.message }; }
 }
 
-// --- CRUD CLIENTS ---
 export async function addClient(client: Omit<Client, 'id'>): Promise<Client | null> {
   try {
     const res = await fetch('/api/clients', {
@@ -139,7 +109,6 @@ export async function deleteClient(id: string): Promise<boolean> {
   } catch (e) { return false; }
 }
 
-// --- CRUD POSEURS ---
 export async function addPoseur(poseur: Omit<Poseur, 'id'>): Promise<Poseur | null> {
   try {
     const res = await fetch('/api/poseurs', {
@@ -169,22 +138,6 @@ export async function deletePoseur(id: string): Promise<boolean> {
   } catch (e) { return false; }
 }
 
-// --- NEXTCLOUD CONFIG ---
-export async function updateNextcloudConfig(config: NextcloudConfig): Promise<boolean> {
-  try {
-    const res = await fetch('/api/config/nextcloud', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
-    });
-    if (res.ok) {
-       localStorage.setItem('buildscan_nextcloud', JSON.stringify(config));
-    }
-    return res.ok;
-  } catch (e) { return false; }
-}
-
-// --- CONFIG WEBHOOKS ---
 export async function updateConfig(config: Partial<StorageConfig>): Promise<boolean> {
   try {
     const res = await fetch('/api/config', {
@@ -200,12 +153,10 @@ export async function updateConfig(config: Partial<StorageConfig>): Promise<bool
   } catch (e) { return false; }
 }
 
-// --- WIKI SERVICE ---
 export async function getWiki(slug: string): Promise<WikiPage | null> {
   try {
     const res = await fetch(`/api/wiki/${slug}`);
-    if (res.ok) return await res.json();
-    return null;
+    return res.ok ? await res.json() : null;
   } catch(e) { return null; }
 }
 
@@ -218,9 +169,4 @@ export async function saveWiki(slug: string, content: string): Promise<boolean> 
     });
     return res.ok;
   } catch(e) { return false; }
-}
-
-// Deprecated: kept for backward compatibility if needed, but redirects to updateConfig
-export async function updateWebhookUrl(url: string): Promise<boolean> {
-  return updateConfig({ webhook_url: url });
 }

@@ -7,13 +7,13 @@ export interface ConstructionOrderData {
   // Separation des données gardien
   gardien_nom: string | null;
   gardien_tel: string | null;
-  gardien_email: string | null; // Ajout email
+  gardien_email: string | null;
   
   nom_client: string | null;
   delai_intervention: string | null;
   date_intervention: string | null;
   descriptif_travaux: string | null;
-  categorie: string | null; // Nouveau champ catégorie (01, 02, 03, 04)
+  categorie: string | null;
 }
 
 export interface Poseur {
@@ -24,7 +24,7 @@ export interface Poseur {
   specialite: string;
   codeSalarie: string;
   type?: string; // Lien avec le Type Affaire du client
-  nextcloud_user?: string; // Identifiant utilisateur Nextcloud
+  nextcloud_user?: string;
 }
 
 export interface Client {
@@ -35,12 +35,6 @@ export interface Client {
   typeAffaire: string; // ex: O3-0
   bpu?: string; // Code BPU
   default_poseur?: string; // ID du poseur par défaut (Relation PocketBase)
-}
-
-export interface NextcloudConfig {
-  url: string;
-  username: string;
-  password?: string;
 }
 
 export interface LogEntry {
@@ -56,16 +50,6 @@ export interface ExtractionResult {
   rawJson: string;
 }
 
-export interface CalendarEvent {
-  uid?: string;
-  title: string;
-  start: string;
-  end: string;
-  location?: string;
-  description?: string;
-  isTentative?: boolean; // Pour le chantier en cours d'analyse
-}
-
 export enum AppStatus {
   IDLE = 'IDLE',
   UPLOADING = 'UPLOADING',
@@ -75,3 +59,18 @@ export enum AppStatus {
 }
 
 export type AppView = 'analyzer' | 'admin';
+
+// Ajout des interfaces manquantes pour le CalendarManager
+export interface NextcloudConfig {
+  url: string;
+}
+
+export interface CalendarEvent {
+  uid: string;
+  title: string;
+  start: string;
+  end: string;
+  location?: string;
+  description?: string;
+  isTentative?: boolean;
+}
