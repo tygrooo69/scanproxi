@@ -30,16 +30,43 @@ const ResultCard: React.FC<ResultCardProps> = ({
     onUpdate({ [field]: value });
   };
 
+  // Logique de formatage des dates en JJ/MM/AAAA
   useEffect(() => {
-    if (data.date_intervention) {
-        let formattedDate = data.date_intervention;
-        if (formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            const [year, month, day] = formattedDate.split('-');
-            formattedDate = `${day}/${month}/${year}`;
-        }
-        if (formattedDate !== data.date_intervention) onUpdate({ date_intervention: formattedDate });
+    const formatDate = (dateStr: string | null) => {
+      if (!dateStr) return null;
+      
+      let d = dateStr.trim();
+      
+      // Cas AAAA-MM-JJ (souvent renvoyé par Gemini)
+      if (d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = d.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Cas JJ-MM-AAAA
+      if (d.match(/^\d{2}-\d{2}-\d{4}$/)) {
+        return d.replace(/-/g, '/');
+      }
+
+      // Si c'est déjà du JJ/MM/AAAA ou autre chose, on ne touche pas sauf si on veut forcer les slashs
+      return d;
+    };
+
+    const formattedDate = formatDate(data.date_intervention);
+    const formattedDelai = formatDate(data.delai_intervention);
+
+    const updates: Partial<ConstructionOrderData> = {};
+    if (formattedDate && formattedDate !== data.date_intervention) {
+      updates.date_intervention = formattedDate;
     }
-  }, [data.date_intervention]);
+    if (formattedDelai && formattedDelai !== data.delai_intervention) {
+      updates.delai_intervention = formattedDelai;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      onUpdate(updates);
+    }
+  }, [data.date_intervention, data.delai_intervention, onUpdate]);
 
   const categories = [{ code: "01", label: "01 Locataire" }, { code: "02", label: "02 Parties communes" }, { code: "03", label: "03 Logement vacant" }, { code: "04", label: "04 Maintenance" }];
   const fields = [
