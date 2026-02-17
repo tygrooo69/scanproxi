@@ -71,8 +71,15 @@ const App: React.FC = () => {
 
   const clearLogs = useCallback(() => setLogs([]), []);
 
-  // Fix: handlePdfDoubleClick must be defined to be used in the JSX below
   const handlePdfDoubleClick = useCallback(() => setIsPdfModalOpen(true), []);
+
+  const handleViewChange = (view: AppView) => {
+    if (view === 'admin' && !isAuthenticated) {
+      setShowAuthModal(true);
+    } else {
+      setCurrentView(view);
+    }
+  };
 
   useEffect(() => {
     const nameToSearch = rawExtractedNameRef.current || extractedData?.nom_client;
@@ -290,7 +297,7 @@ const App: React.FC = () => {
         </div>
       )}
       {!isHeaderVisible && <button onClick={() => setIsHeaderVisible(true)} className="absolute top-2 right-4 z-50 bg-slate-800 text-slate-400 p-2 rounded-b-lg text-xs font-bold opacity-50 hover:opacity-100">Menu</button>}
-      {isHeaderVisible && <Header currentView={currentView} onViewChange={setCurrentView} />}
+      {isHeaderVisible && <Header currentView={currentView} onViewChange={handleViewChange} />}
       {showAuthModal && <AdminAuth onAuthenticated={() => { setIsAuthenticated(true); setShowAuthModal(false); setCurrentView('admin'); }} onCancel={() => setShowAuthModal(false)} />}
       <main className={`flex-grow container mx-auto px-4 py-8 max-w-[98%] ${!isHeaderVisible ? 'pt-4' : ''}`}>
         {currentView === 'admin' && <AdminDashboard />}
