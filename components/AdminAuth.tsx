@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface AdminAuthProps {
@@ -11,7 +12,10 @@ const AdminAuth: React.FC<AdminAuthProps> = ({ onAuthenticated, onCancel }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '123456789') {
+    // Utilise la variable d'env fournie par Coolify/Vite ou le fallback par défaut
+    const requiredPassword = process.env.PANEL_ADMIN_PASSWORD || '123456789';
+    
+    if (password === requiredPassword) {
       onAuthenticated();
     } else {
       setError(true);
