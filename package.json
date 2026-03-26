@@ -4,17 +4,15 @@
   "version": "1.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "vite",
     "build": "tsc && vite build",
     "start": "node server.js",
-    "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@google/genai": "^1.37.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
-    "multer": "^2.1.1",
     "pocketbase": "^0.26.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

@@ -221,35 +221,34 @@ const App: React.FC = () => {
       Object.entries(payload).forEach(([key, val]) => formData.append(key, val as string));
 
       // LOG DÉTAILLÉ DANS LE TERMINAL
-      addLog('request', `Transmission via proxy serveur démarrée...`, { 
+      addLog('request', `Transmission vers n8n démarrée...`, { 
         target_url: webhookUrl,
         payload_summary: payload
       });
 
       try {
-        // On ajoute l'URL cible au FormData pour le proxy
-        formData.append('webhookUrl', webhookUrl);
-
-        // On appelle notre propre API serveur au lieu de n8n directement
-        const response = await fetch('/api/transmit', { 
-          method: 'POST', 
-          body: formData 
-        });
+        const response = await fetch(webhookUrl, { method: 'POST', body: formData });
         
-        const result = await response.json().catch(() => ({}));
+        let result: any = {};
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          result = await response.json().catch(() => ({}));
+        } else {
+          result = { text: await response.text().catch(() => "") };
+        }
 
         if (response.ok && (result.success !== false)) {
           setTransmitStatus('success');
-          addLog('success', `Transmission réussie via proxy.`, result.data || result);
+          addLog('success', `Transmission réussie à n8n.`, result);
         } else {
-          const errorMsg = result.message || result.error || `Erreur Proxy ${response.status}`;
+          const errorMsg = result.message || result.error || (typeof result === 'string' ? result : `Erreur HTTP ${response.status}`);
           throw new Error(errorMsg);
         }
       } catch (err: any) {
         setTransmitStatus('error');
-        addLog('error', `Échec transmission (Proxy): ${err.message}`, { 
+        addLog('error', `Échec transmission: ${err.message}`, { 
           error_type: err.name,
-          hint: "Si l'erreur est 'Failed to fetch', le serveur backend n'est peut-être pas démarré ou l'URL est incorrecte."
+          stack: err.stack?.split('\n')[0] 
         });
       } finally { setTransmitting(false); }
   };
