@@ -22,11 +22,22 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
+/**
+ * Récupère la configuration DB.
+ * Priorité : 1. Fichier local (si volume persistant présent) 2. Variables d'environnement Coolify
+ */
 async function getDbConfig() {
   try {
     const data = await fs.readFile(DB_CONFIG_FILE, 'utf8');
-    return JSON.parse(data);
+    const config = JSON.parse(data);
+    // On fusionne avec les variables d'env au cas où certains champs seraient vides dans le fichier
+    return {
+      url: config.url || process.env.POCKETBASE_URL,
+      email: config.email || process.env.POCKETBASE_ADMIN_EMAIL,
+      password: config.password || process.env.POCKETBASE_ADMIN_PASSWORD
+    };
   } catch (e) {
+    // Si le fichier n'existe pas (cas standard Docker sans volume), on utilise uniquement l'ENV
     return {
       url: process.env.POCKETBASE_URL,
       email: process.env.POCKETBASE_ADMIN_EMAIL,
@@ -36,28 +47,41 @@ async function getDbConfig() {
 }
 
 async function saveDbConfig(config) {
-  await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(config, null, 2));
+  try {
+    await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(config, null, 2));
+  } catch (e) {
+    console.error('⚠️ Impossible d\'écrire db_config.json (Volume non monté ?)', e.message);
+  }
 }
 
 async function initPocketBase() {
-  console.log('🔄 Initialisation connexion PocketBase...');
+  console.log('🔄 Tentative de connexion PocketBase...');
   const config = await getDbConfig();
-  if (!config.url) return false;
+  
+  if (!config.url) {
+    console.warn('⚠️ POCKETBASE_URL non définie. En attente de configuration via l\'UI.');
+    return false;
+  }
+
   try {
     pb = new PocketBase(config.url);
     pb.autoCancellation(false);
+    
     if (config.email && config.password) {
       await pb.collection('_superusers').authWithPassword(config.email, config.password);
-      console.log(`✅ Connecté à PocketBase Admin (${config.url})`);
+      console.log(`✅ Connecté à PocketBase : ${config.url} (Admin: ${config.email})`);
       return true;
+    } else {
+      console.warn('⚠️ Identifiants PocketBase manquants (Email/Password).');
+      return false;
     }
-    return false;
   } catch (error) {
-    console.error('❌ Erreur Connexion PocketBase:', error.originalError || error.message);
+    console.error('❌ Échec connexion PocketBase:', error.message);
     return false;
   }
 }
 
+// Initialisation au démarrage du serveur
 initPocketBase();
 
 app.get('/api/admin/db-config', async (req, res) => {
@@ -74,21 +98,34 @@ app.post('/api/admin/db-config', async (req, res) => {
     const { url, email, password } = req.body;
     const oldConfig = await getDbConfig();
     const newConfig = { url, email, password: password || oldConfig.password };
+    
+    // On sauvegarde pour la session actuelle si le volume est persistant
     await saveDbConfig(newConfig);
+    
     const success = await initPocketBase();
-    if (success) res.json({ success: true, message: "Sauvegardé." });
-    else res.status(400).json({ success: false, message: "Erreur." });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    if (success) {
+      res.json({ success: true, message: "Connexion réussie et configurée." });
+    } else {
+      res.status(400).json({ success: false, message: "Échec de la connexion avec ces identifiants." });
+    }
+  } catch (err) { 
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 const requirePb = (req, res, next) => {
-  if (!pb || !pb.authStore.isValid) return res.status(503).json({ error: "PB non connecté." });
+  if (!pb || !pb.authStore.isValid) return res.status(503).json({ error: "Service PocketBase non disponible ou déconnecté." });
   next();
 };
 
 app.get('/api/bootstrap', async (req, res) => {
   try {
-    if (!pb) return res.json({ webhook_url: "", client_webhook_url: "", clients: [], poseurs: [] });
+    if (!pb || !pb.authStore.isValid) {
+      // Si déconnecté, on tente une reconnexion rapide
+      const reconnected = await initPocketBase();
+      if (!reconnected) return res.json({ webhook_url: "", client_webhook_url: "", clients: [], poseurs: [] });
+    }
+
     const [clientsReq, poseursReq, configList] = await Promise.all([
       pb.collection('clients').getFullList({ sort: 'nom' }).catch(() => []), 
       pb.collection('poseurs').getFullList({ sort: 'nom' }).catch(() => []),
@@ -119,7 +156,9 @@ app.get('/api/bootstrap', async (req, res) => {
         nextcloud_user: p.nextcloud_user
       }))
     });
-  } catch (error) { res.status(500).json({ error: "Erreur." }); }
+  } catch (error) { 
+    res.status(500).json({ error: "Erreur lors du chargement des données initiales." }); 
+  }
 });
 
 app.get('/api/wiki/:slug', requirePb, async (req, res) => {
@@ -196,5 +235,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur sur le port ${PORT}`);
+  console.log(`🚀 BuildScan Server démarré sur le port ${PORT}`);
 });

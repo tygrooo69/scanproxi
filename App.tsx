@@ -149,6 +149,7 @@ const App: React.FC = () => {
             nomClient: mappedClient.libelle_client || mappedClient.nom
           })
         });
+        
         if (response.ok) {
           const result = await response.json();
           let newNumber = result.numero_affaire || result.next_id || result.value || result;
@@ -158,8 +159,13 @@ const App: React.FC = () => {
             setAutoChantierNumber(formattedNumber);
             addLog('response', `Numéro d'affaire récupéré : ${formattedNumber}`);
           }
+        } else {
+          const errorText = await response.text().catch(() => "Impossible de lire le corps de l'erreur");
+          addLog('error', `Erreur API Numéro Affaire (${response.status}): ${response.statusText}`, { details: errorText });
         }
-      } catch (e) { addLog('error', `Échec récupération numéro d'affaire.`); } finally { setIsFetchingChantier(false); }
+      } catch (e: any) { 
+        addLog('error', `Échec réseau récupération numéro d'affaire: ${e.message}`); 
+      } finally { setIsFetchingChantier(false); }
     };
     fetchChantier();
   }, [mappedClient, addLog]);
@@ -170,7 +176,7 @@ const App: React.FC = () => {
       setTransmitStatus('idle');
       const webhookUrl = localStorage.getItem('buildscan_webhook_url') || "";
       if (!webhookUrl) {
-          addLog('error', 'URL Webhook manquante.');
+          addLog('error', 'URL Webhook manquante. Veuillez la configurer dans les réglages.');
           setTransmitStatus('error');
           setTransmitting(false);
           return;
@@ -222,16 +228,28 @@ const App: React.FC = () => {
 
       try {
         const response = await fetch(webhookUrl, { method: 'POST', body: formData });
-        const result = await response.json().catch(() => ({}));
+        
+        let result: any = {};
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          result = await response.json().catch(() => ({}));
+        } else {
+          result = { text: await response.text().catch(() => "") };
+        }
+
         if (response.ok && (result.success !== false)) {
           setTransmitStatus('success');
           addLog('success', `Transmission réussie à n8n.`, result);
         } else {
-          throw new Error(result.message || `Erreur n8n : ${response.status}`);
+          const errorMsg = result.message || result.error || (typeof result === 'string' ? result : `Erreur HTTP ${response.status}`);
+          throw new Error(errorMsg);
         }
       } catch (err: any) {
         setTransmitStatus('error');
-        addLog('error', `Échec transmission: ${err.message}`);
+        addLog('error', `Échec transmission: ${err.message}`, { 
+          error_type: err.name,
+          stack: err.stack?.split('\n')[0] 
+        });
       } finally { setTransmitting(false); }
   };
 
