@@ -226,33 +226,53 @@ const App: React.FC = () => {
         payload_summary: payload
       });
 
+      const executeTransmit = async (attempt: number = 1): Promise<void> => {
+        try {
+          const proxyUrl = '/api/proxy-webhook';
+          
+          // On recrée un FormData propre pour chaque tentative
+          const currentFormData = new FormData();
+          if (originalFile) currentFormData.append('file', originalFile, originalFile.name || 'document.pdf');
+          currentFormData.append('targetUrl', webhookUrl);
+          Object.entries(payload).forEach(([key, val]) => currentFormData.append(key, val as string));
+
+          const response = await fetch(proxyUrl, { 
+            method: 'POST', 
+            body: currentFormData,
+            // On ajoute un signal d'abandon court pour forcer le retry si ça traîne trop
+            signal: AbortSignal.timeout(30000) 
+          });
+          
+          let result: any = {};
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            result = await response.json().catch(() => ({}));
+          } else {
+            result = { text: await response.text().catch(() => "") };
+          }
+
+          if (response.ok && (result.success !== false)) {
+            setTransmitStatus('success');
+            addLog('success', `Transmission réussie (Tentative ${attempt}).`, result);
+          } else {
+            const errorMsg = result.error || result.message || (typeof result === 'string' ? result : `Erreur Proxy ${response.status}`);
+            throw new Error(errorMsg);
+          }
+        } catch (err: any) {
+          if (attempt < 2) {
+            addLog('info', `Échec tentative ${attempt}, nouvel essai dans 1.5s...`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            return executeTransmit(attempt + 1);
+          }
+          throw err;
+        }
+      };
+
       try {
-        // On envoie au proxy local au lieu de n8n directement
-        const proxyUrl = '/api/proxy-webhook';
-        
-        // On ajoute l'URL cible dans le FormData pour le proxy
-        formData.append('targetUrl', webhookUrl);
-
-        const response = await fetch(proxyUrl, { method: 'POST', body: formData });
-        
-        let result: any = {};
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          result = await response.json().catch(() => ({}));
-        } else {
-          result = { text: await response.text().catch(() => "") };
-        }
-
-        if (response.ok && (result.success !== false)) {
-          setTransmitStatus('success');
-          addLog('success', `Transmission réussie via proxy.`, result);
-        } else {
-          const errorMsg = result.error || result.message || (typeof result === 'string' ? result : `Erreur Proxy ${response.status}`);
-          throw new Error(errorMsg);
-        }
+        await executeTransmit(1);
       } catch (err: any) {
         setTransmitStatus('error');
-        addLog('error', `Échec transmission (Proxy): ${err.message}`, { 
+        addLog('error', `Échec transmission après 2 tentatives: ${err.message}`, { 
           error_type: err.name,
           stack: err.stack?.split('\n')[0] 
         });
