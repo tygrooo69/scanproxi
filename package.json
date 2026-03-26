@@ -13,6 +13,9 @@
     "@google/genai": "^1.37.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "form-data": "^4.0.5",
+    "multer": "^2.1.1",
+    "node-fetch": "^3.3.2",
     "pocketbase": "^0.26.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

@@ -6,6 +6,9 @@ import fs from 'fs/promises';
 import cors from 'cors';
 import PocketBase from 'pocketbase';
 import { randomUUID } from 'crypto';
+import multer from 'multer';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +17,9 @@ const DB_CONFIG_FILE = path.join(__dirname, 'db_config.json');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuration multer pour le proxy (stockage en mémoire)
+const upload = multer({ storage: multer.memoryStorage() });
+
 const ENV_WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 let pb = null;
@@ -21,6 +27,61 @@ let pb = null;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
+
+/**
+ * Route Proxy pour n8n (Contournement CORS)
+ */
+app.post('/api/proxy-webhook', upload.single('file'), async (req, res) => {
+  const targetUrl = req.body.targetUrl;
+  if (!targetUrl) return res.status(400).json({ error: "URL cible manquante." });
+
+  try {
+    const form = new FormData();
+    
+    // On ajoute le fichier s'il existe
+    if (req.file) {
+      form.append('file', req.file.buffer, {
+        filename: req.file.originalname,
+        contentType: req.file.mimetype,
+      });
+    }
+
+    // On ajoute tous les autres champs reçus
+    Object.entries(req.body).forEach(([key, value]) => {
+      if (key !== 'targetUrl') {
+        form.append(key, value);
+      }
+    });
+
+    console.log(`📡 Proxying request to: ${targetUrl}`);
+    
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      body: form,
+      headers: form.getHeaders(),
+    });
+
+    const contentType = response.headers.get("content-type");
+    let result;
+    if (contentType && contentType.includes("application/json")) {
+      result = await response.json();
+    } else {
+      result = { text: await response.text() };
+    }
+
+    if (response.ok) {
+      res.status(response.status).json(result);
+    } else {
+      res.status(response.status).json({ 
+        error: `Erreur n8n (${response.status})`, 
+        details: result 
+      });
+    }
+  } catch (err) {
+    console.error('❌ Erreur Proxy Webhook:', err.message);
+    res.status(500).json({ error: "Erreur lors de la transmission via le proxy.", details: err.message });
+  }
+});
 
 /**
  * Récupère la configuration DB.

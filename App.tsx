@@ -221,13 +221,19 @@ const App: React.FC = () => {
       Object.entries(payload).forEach(([key, val]) => formData.append(key, val as string));
 
       // LOG DÉTAILLÉ DANS LE TERMINAL
-      addLog('request', `Transmission vers n8n démarrée...`, { 
+      addLog('request', `Transmission via proxy démarrée...`, { 
         target_url: webhookUrl,
         payload_summary: payload
       });
 
       try {
-        const response = await fetch(webhookUrl, { method: 'POST', body: formData });
+        // On envoie au proxy local au lieu de n8n directement
+        const proxyUrl = '/api/proxy-webhook';
+        
+        // On ajoute l'URL cible dans le FormData pour le proxy
+        formData.append('targetUrl', webhookUrl);
+
+        const response = await fetch(proxyUrl, { method: 'POST', body: formData });
         
         let result: any = {};
         const contentType = response.headers.get("content-type");
@@ -239,14 +245,14 @@ const App: React.FC = () => {
 
         if (response.ok && (result.success !== false)) {
           setTransmitStatus('success');
-          addLog('success', `Transmission réussie à n8n.`, result);
+          addLog('success', `Transmission réussie via proxy.`, result);
         } else {
-          const errorMsg = result.message || result.error || (typeof result === 'string' ? result : `Erreur HTTP ${response.status}`);
+          const errorMsg = result.error || result.message || (typeof result === 'string' ? result : `Erreur Proxy ${response.status}`);
           throw new Error(errorMsg);
         }
       } catch (err: any) {
         setTransmitStatus('error');
-        addLog('error', `Échec transmission: ${err.message}`, { 
+        addLog('error', `Échec transmission (Proxy): ${err.message}`, { 
           error_type: err.name,
           stack: err.stack?.split('\n')[0] 
         });
