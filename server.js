@@ -31,14 +31,24 @@ app.use(express.static(path.join(__dirname, 'dist')));
 /**
  * Route Proxy pour n8n (Contournement CORS)
  */
-app.post('/api/proxy-webhook', upload.single('file'), async (req, res) => {
+app.post('/api/proxy-webhook', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'ECONNRESET' || err.message === 'Request aborted') {
+        console.warn('⚠️ Requête annulée par le client pendant l\'upload.');
+        return res.status(499).json({ error: "Connexion interrompue par le client." });
+      }
+      return res.status(400).json({ error: "Erreur lors de la réception du fichier", details: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   const targetUrl = req.body.targetUrl;
   if (!targetUrl) return res.status(400).json({ error: "URL cible manquante." });
 
   try {
     const form = new FormData();
     
-    // On ajoute le fichier s'il existe
     if (req.file) {
       form.append('file', req.file.buffer, {
         filename: req.file.originalname,
@@ -46,19 +56,22 @@ app.post('/api/proxy-webhook', upload.single('file'), async (req, res) => {
       });
     }
 
-    // On ajoute tous les autres champs reçus
     Object.entries(req.body).forEach(([key, value]) => {
       if (key !== 'targetUrl') {
         form.append(key, value);
       }
     });
 
-    console.log(`📡 Proxying request to: ${targetUrl}`);
+    console.log(`📡 Transmission via Proxy vers: ${targetUrl}`);
     
     const response = await fetch(targetUrl, {
       method: 'POST',
       body: form,
-      headers: form.getHeaders(),
+      headers: {
+        ...form.getHeaders(),
+        'Connection': 'keep-alive'
+      },
+      timeout: 60000 // 60 secondes pour n8n
     });
 
     const contentType = response.headers.get("content-type");
@@ -79,7 +92,7 @@ app.post('/api/proxy-webhook', upload.single('file'), async (req, res) => {
     }
   } catch (err) {
     console.error('❌ Erreur Proxy Webhook:', err.message);
-    res.status(500).json({ error: "Erreur lors de la transmission via le proxy.", details: err.message });
+    res.status(500).json({ error: "Erreur de transmission (Proxy -> n8n).", details: err.message });
   }
 });
 

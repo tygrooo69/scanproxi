@@ -230,7 +230,9 @@ const App: React.FC = () => {
         try {
           const proxyUrl = '/api/proxy-webhook';
           
-          // On recrée un FormData propre pour chaque tentative
+          // Petit délai de stabilisation avant la première tentative
+          if (attempt === 1) await new Promise(resolve => setTimeout(resolve, 500));
+
           const currentFormData = new FormData();
           if (originalFile) currentFormData.append('file', originalFile, originalFile.name || 'document.pdf');
           currentFormData.append('targetUrl', webhookUrl);
@@ -238,9 +240,7 @@ const App: React.FC = () => {
 
           const response = await fetch(proxyUrl, { 
             method: 'POST', 
-            body: currentFormData,
-            // On ajoute un signal d'abandon court pour forcer le retry si ça traîne trop
-            signal: AbortSignal.timeout(30000) 
+            body: currentFormData
           });
           
           let result: any = {};
