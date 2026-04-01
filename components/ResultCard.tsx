@@ -14,6 +14,7 @@ interface ResultCardProps {
   poseurs: Poseur[];
   selectedPoseurId: string;
   onPoseurSelect: (id: string) => void;
+  onChantierUpdate: (num: string) => void;
   onTransmit: () => void;
   isTransmitting: boolean;
   transmitStatus: 'idle' | 'success' | 'error';
@@ -23,7 +24,7 @@ interface ResultCardProps {
 const ResultCard: React.FC<ResultCardProps> = ({ 
     data, onReset, mappedClient, potentialClients = [], onClientMatchUpdate,
     chantierNumber, isFetchingChantier, onUpdate, poseurs, selectedPoseurId,
-    onPoseurSelect, onTransmit, isTransmitting, transmitStatus, rawPdfClientName
+    onPoseurSelect, onChantierUpdate, onTransmit, isTransmitting, transmitStatus, rawPdfClientName
 }) => {
   
   const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
@@ -99,7 +100,16 @@ const ResultCard: React.FC<ResultCardProps> = ({
             </button>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t border-emerald-200 pt-3">
-             <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Affaire</p><span className="font-mono font-black text-slate-800 text-lg">{chantierNumber || '-'}</span></div>
+             <div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Affaire</p>
+                <input 
+                  type="text" 
+                  value={chantierNumber || ''} 
+                  onChange={(e) => onChantierUpdate(e.target.value)}
+                  className="w-full font-mono font-black text-slate-800 text-lg bg-white border border-emerald-300 px-2 py-1 rounded focus:outline-none focus:border-emerald-500"
+                  placeholder="-"
+                />
+             </div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Catégorie</p><select value={data.categorie || ""} onChange={(e) => handleInputChange('categorie', e.target.value)} className="w-full font-bold text-slate-800 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded">{categories.map(cat => <option key={cat.code} value={cat.code}>{cat.label}</option>)}</select></div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Assignation</p><select value={selectedPoseurId} onChange={(e) => onPoseurSelect(e.target.value)} className="w-full font-bold text-slate-800 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded"><option value="">-- Non assigné --</option>{poseurs.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">BPU</p><span className="font-mono font-black text-slate-700 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded block">{mappedClient.bpu || '-'}</span></div>

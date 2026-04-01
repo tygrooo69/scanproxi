@@ -171,7 +171,7 @@ const App: React.FC = () => {
   }, [mappedClient, addLog]);
 
   const handleTransmit = async () => {
-      if (!extractedData) return;
+      if (!extractedData || !mappedClient) return;
       setTransmitting(true);
       setTransmitStatus('idle');
       const webhookUrl = localStorage.getItem('buildscan_webhook_url') || "";
@@ -189,9 +189,6 @@ const App: React.FC = () => {
       const selectedPoseur = allPoseurs.find(p => p.id === selectedPoseurId);
       const finalClientLabel = mappedClient?.libelle_client || mappedClient?.nom || extractedData.nom_client || '';
 
-      const formData = new FormData();
-      if (originalFile) formData.append('file', originalFile, originalFile.name || 'document.pdf');
-      
       const payload: any = {
         codeClient: mappedClient?.codeClient || '',
         code_trv: mappedClient?.typeAffaire || 'O3-0',
@@ -218,8 +215,6 @@ const App: React.FC = () => {
         poseur_code: selectedPoseur?.codeSalarie || ''
       };
 
-      Object.entries(payload).forEach(([key, val]) => formData.append(key, val as string));
-
       // LOG DÉTAILLÉ DANS LE TERMINAL
       addLog('request', `Transmission via proxy démarrée...`, { 
         target_url: webhookUrl,
@@ -236,6 +231,8 @@ const App: React.FC = () => {
           const currentFormData = new FormData();
           if (originalFile) currentFormData.append('file', originalFile, originalFile.name || 'document.pdf');
           currentFormData.append('targetUrl', webhookUrl);
+          
+          // On s'assure d'utiliser les données les plus fraîches possibles
           Object.entries(payload).forEach(([key, val]) => currentFormData.append(key, val as string));
 
           const response = await fetch(proxyUrl, { 
@@ -284,6 +281,8 @@ const App: React.FC = () => {
     setStatus(AppStatus.ANALYZING);
     setError(null);
     setExtractedData(null);
+    setMappedClient(null); // RESET CLIENT MAPPING
+    setAutoChantierNumber(null); // RESET CHANTIER NUMBER
     setOriginalFile(file);
     clearLogs();
     setIsSidebarOpen(false); 
@@ -372,10 +371,11 @@ const App: React.FC = () => {
                           onClientMatchUpdate={(id) => { const s = potentialClients.find(c => c.id === id); if(s) setMappedClient(s); }}
                           chantierNumber={autoChantierNumber}
                           isFetchingChantier={isFetchingChantier}
-                          onUpdate={(upd) => setExtractedData(prev => prev ? ({...prev, ...upd}) : null)}
+                          onUpdate={useCallback((upd: Partial<ConstructionOrderData>) => setExtractedData(prev => prev ? ({...prev, ...upd}) : null), [])}
                           poseurs={allPoseurs}
                           selectedPoseurId={selectedPoseurId}
                           onPoseurSelect={setSelectedPoseurId}
+                          onChantierUpdate={setAutoChantierNumber}
                           onTransmit={handleTransmit}
                           isTransmitting={transmitting}
                           transmitStatus={transmitStatus}
