@@ -14,7 +14,6 @@ interface ResultCardProps {
   poseurs: Poseur[];
   selectedPoseurId: string;
   onPoseurSelect: (id: string) => void;
-  onChantierUpdate: (num: string) => void;
   onTransmit: () => void;
   isTransmitting: boolean;
   transmitStatus: 'idle' | 'success' | 'error';
@@ -24,7 +23,7 @@ interface ResultCardProps {
 const ResultCard: React.FC<ResultCardProps> = ({ 
     data, onReset, mappedClient, potentialClients = [], onClientMatchUpdate,
     chantierNumber, isFetchingChantier, onUpdate, poseurs, selectedPoseurId,
-    onPoseurSelect, onChantierUpdate, onTransmit, isTransmitting, transmitStatus, rawPdfClientName
+    onPoseurSelect, onTransmit, isTransmitting, transmitStatus, rawPdfClientName
 }) => {
   
   const handleInputChange = (field: keyof ConstructionOrderData, value: string) => {
@@ -95,21 +94,29 @@ const ResultCard: React.FC<ResultCardProps> = ({
                 <p className="text-xs text-emerald-700 font-bold uppercase mt-1">Code : <span className="font-mono">{mappedClient.codeClient}</span></p>
               </div>
             </div>
-            <button disabled={isTransmitting || transmitStatus === 'success'} onClick={onTransmit} className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg ${transmitStatus === 'success' ? 'bg-green-600 text-white' : transmitStatus === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white shadow-slate-900/20'}`}>
-              {isTransmitting ? 'Envoi...' : transmitStatus === 'success' ? 'Envoyé' : 'Transmettre'}
-            </button>
+            <div className="flex items-center gap-2">
+              {transmitStatus === 'error' && (
+                <button 
+                  disabled={isTransmitting} 
+                  onClick={onTransmit} 
+                  className="px-4 py-3 rounded-xl font-bold text-sm bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center gap-2"
+                  title="Relancer la transmission"
+                >
+                  <i className={`fas fa-sync-alt ${isTransmitting ? 'fa-spin' : ''}`}></i>
+                  Réessayer
+                </button>
+              )}
+              <button 
+                disabled={isTransmitting || transmitStatus === 'success'} 
+                onClick={onTransmit} 
+                className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg ${transmitStatus === 'success' ? 'bg-green-600 text-white' : transmitStatus === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white shadow-slate-900/20'}`}
+              >
+                {isTransmitting ? 'Envoi...' : transmitStatus === 'success' ? 'Envoyé' : transmitStatus === 'error' ? 'Échec' : 'Transmettre'}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t border-emerald-200 pt-3">
-             <div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Affaire</p>
-                <input 
-                  type="text" 
-                  value={chantierNumber || ''} 
-                  onChange={(e) => onChantierUpdate(e.target.value)}
-                  className="w-full font-mono font-black text-slate-800 text-lg bg-white border border-emerald-300 px-2 py-1 rounded focus:outline-none focus:border-emerald-500"
-                  placeholder="-"
-                />
-             </div>
+             <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Affaire</p><span className="font-mono font-black text-slate-800 text-lg">{chantierNumber || '-'}</span></div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Catégorie</p><select value={data.categorie || ""} onChange={(e) => handleInputChange('categorie', e.target.value)} className="w-full font-bold text-slate-800 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded">{categories.map(cat => <option key={cat.code} value={cat.code}>{cat.label}</option>)}</select></div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Assignation</p><select value={selectedPoseurId} onChange={(e) => onPoseurSelect(e.target.value)} className="w-full font-bold text-slate-800 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded"><option value="">-- Non assigné --</option>{poseurs.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}</select></div>
              <div><p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">BPU</p><span className="font-mono font-black text-slate-700 text-sm bg-white border border-emerald-300 px-2 py-1.5 rounded block">{mappedClient.bpu || '-'}</span></div>

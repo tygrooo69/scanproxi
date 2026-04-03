@@ -71,7 +71,7 @@ app.post('/api/proxy-webhook', (req, res, next) => {
         ...form.getHeaders(),
         'Connection': 'keep-alive'
       },
-      timeout: 60000 // 60 secondes pour n8n
+      timeout: 120000 // 120 secondes (2 minutes) pour n8n
     });
 
     const contentType = response.headers.get("content-type");
