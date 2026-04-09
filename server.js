@@ -9,156 +9,157 @@ import { randomUUID } from 'crypto';
 import multer from 'multer';
 import FormData from 'form-data';
 import fetch from 'node-fetch';
+import { createServer as createViteServer } from 'vite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_CONFIG_FILE = path.join(__dirname, 'db_config.json');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
 
-// Configuration multer pour le proxy (stockage en mémoire)
-const upload = multer({ storage: multer.memoryStorage() });
+  // Configuration multer pour le proxy (stockage en mémoire)
+  const upload = multer({ storage: multer.memoryStorage() });
 
-const ENV_WEBHOOK_URL = process.env.WEBHOOK_URL;
+  const ENV_WEBHOOK_URL = process.env.WEBHOOK_URL;
 
-let pb = null;
+  let pb = null;
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(path.join(__dirname, 'dist')));
+  app.use(cors());
+  app.use(express.json({ limit: '50mb' }));
 
-/**
- * Route Proxy pour n8n (Contournement CORS)
- */
-app.post('/api/proxy-webhook', (req, res, next) => {
-  upload.single('file')(req, res, (err) => {
-    if (err) {
-      if (err.code === 'ECONNRESET' || err.message === 'Request aborted') {
-        console.warn('⚠️ Requête annulée par le client pendant l\'upload.');
-        return res.status(499).json({ error: "Connexion interrompue par le client." });
+  /**
+   * Route Proxy pour n8n (Contournement CORS)
+   */
+  app.post('/api/proxy-webhook', (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        if (err.code === 'ECONNRESET' || err.message === 'Request aborted') {
+          console.warn('⚠️ Requête annulée par le client pendant l\'upload.');
+          return res.status(499).json({ error: "Connexion interrompue par le client." });
+        }
+        return res.status(400).json({ error: "Erreur lors de la réception du fichier", details: err.message });
       }
-      return res.status(400).json({ error: "Erreur lors de la réception du fichier", details: err.message });
+      next();
+    });
+  }, async (req, res) => {
+    const targetUrl = req.body.targetUrl;
+    if (!targetUrl) return res.status(400).json({ error: "URL cible manquante." });
+
+    try {
+      const form = new FormData();
+      
+      if (req.file) {
+        form.append('file', req.file.buffer, {
+          filename: req.file.originalname,
+          contentType: req.file.mimetype,
+        });
+      }
+
+      Object.entries(req.body).forEach(([key, value]) => {
+        if (key !== 'targetUrl') {
+          form.append(key, value);
+        }
+      });
+
+      console.log(`📡 Transmission via Proxy vers: ${targetUrl}`);
+      
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        body: form,
+        headers: {
+          ...form.getHeaders(),
+          'Connection': 'keep-alive'
+        },
+        timeout: 60000 // 60 secondes pour n8n
+      });
+
+      const contentType = response.headers.get("content-type");
+      let result;
+      if (contentType && contentType.includes("application/json")) {
+        result = await response.json();
+      } else {
+        result = { text: await response.text() };
+      }
+
+      if (response.ok) {
+        res.status(response.status).json(result);
+      } else {
+        res.status(response.status).json({ 
+          error: `Erreur n8n (${response.status})`, 
+          details: result 
+        });
+      }
+    } catch (err) {
+      console.error('❌ Erreur Proxy Webhook:', err.message);
+      res.status(500).json({ error: "Erreur de transmission (Proxy -> n8n).", details: err.message });
     }
-    next();
   });
-}, async (req, res) => {
-  const targetUrl = req.body.targetUrl;
-  if (!targetUrl) return res.status(400).json({ error: "URL cible manquante." });
 
-  try {
-    const form = new FormData();
-    
-    if (req.file) {
-      form.append('file', req.file.buffer, {
-        filename: req.file.originalname,
-        contentType: req.file.mimetype,
-      });
-    }
-
-    Object.entries(req.body).forEach(([key, value]) => {
-      if (key !== 'targetUrl') {
-        form.append(key, value);
-      }
-    });
-
-    console.log(`📡 Transmission via Proxy vers: ${targetUrl}`);
-    
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      body: form,
-      headers: {
-        ...form.getHeaders(),
-        'Connection': 'keep-alive'
-      },
-      timeout: 120000 // 120 secondes (2 minutes) pour n8n
-    });
-
-    const contentType = response.headers.get("content-type");
-    let result;
-    if (contentType && contentType.includes("application/json")) {
-      result = await response.json();
-    } else {
-      result = { text: await response.text() };
-    }
-
-    if (response.ok) {
-      res.status(response.status).json(result);
-    } else {
-      res.status(response.status).json({ 
-        error: `Erreur n8n (${response.status})`, 
-        details: result 
-      });
-    }
-  } catch (err) {
-    console.error('❌ Erreur Proxy Webhook:', err.message);
-    res.status(500).json({ error: "Erreur de transmission (Proxy -> n8n).", details: err.message });
-  }
-});
-
-/**
- * Récupère la configuration DB.
- * Priorité : 1. Fichier local (si volume persistant présent) 2. Variables d'environnement Coolify
- */
-async function getDbConfig() {
-  try {
-    const data = await fs.readFile(DB_CONFIG_FILE, 'utf8');
-    const config = JSON.parse(data);
-    // On fusionne avec les variables d'env au cas où certains champs seraient vides dans le fichier
-    return {
-      url: config.url || process.env.POCKETBASE_URL,
-      email: config.email || process.env.POCKETBASE_ADMIN_EMAIL,
-      password: config.password || process.env.POCKETBASE_ADMIN_PASSWORD
-    };
-  } catch (e) {
-    // Si le fichier n'existe pas (cas standard Docker sans volume), on utilise uniquement l'ENV
-    return {
-      url: process.env.POCKETBASE_URL,
-      email: process.env.POCKETBASE_ADMIN_EMAIL,
-      password: process.env.POCKETBASE_ADMIN_PASSWORD
-    };
-  }
-}
-
-async function saveDbConfig(config) {
-  try {
-    await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(config, null, 2));
-  } catch (e) {
-    console.error('⚠️ Impossible d\'écrire db_config.json (Volume non monté ?)', e.message);
-  }
-}
-
-async function initPocketBase() {
-  console.log('🔄 Tentative de connexion PocketBase...');
-  const config = await getDbConfig();
+  // ... (toutes les autres routes API existantes) ...
+  // Je vais garder le reste du code mais l'envelopper dans startServer
   
-  if (!config.url) {
-    console.warn('⚠️ POCKETBASE_URL non définie. En attente de configuration via l\'UI.');
-    return false;
+  /**
+   * Récupère la configuration DB.
+   */
+  async function getDbConfig() {
+    try {
+      const data = await fs.readFile(DB_CONFIG_FILE, 'utf8');
+      const config = JSON.parse(data);
+      return {
+        url: config.url || process.env.POCKETBASE_URL,
+        email: config.email || process.env.POCKETBASE_ADMIN_EMAIL,
+        password: config.password || process.env.POCKETBASE_ADMIN_PASSWORD
+      };
+    } catch (e) {
+      return {
+        url: process.env.POCKETBASE_URL,
+        email: process.env.POCKETBASE_ADMIN_EMAIL,
+        password: process.env.POCKETBASE_ADMIN_PASSWORD
+      };
+    }
   }
 
-  try {
-    pb = new PocketBase(config.url);
-    pb.autoCancellation(false);
+  async function saveDbConfig(config) {
+    try {
+      await fs.writeFile(DB_CONFIG_FILE, JSON.stringify(config, null, 2));
+    } catch (e) {
+      console.error('⚠️ Impossible d\'écrire db_config.json', e.message);
+    }
+  }
+
+  async function initPocketBase() {
+    console.log('🔄 Tentative de connexion PocketBase...');
+    const config = await getDbConfig();
     
-    if (config.email && config.password) {
-      await pb.collection('_superusers').authWithPassword(config.email, config.password);
-      console.log(`✅ Connecté à PocketBase : ${config.url} (Admin: ${config.email})`);
-      return true;
-    } else {
-      console.warn('⚠️ Identifiants PocketBase manquants (Email/Password).');
+    if (!config.url) {
+      console.warn('⚠️ POCKETBASE_URL non définie.');
       return false;
     }
-  } catch (error) {
-    console.error('❌ Échec connexion PocketBase:', error.message);
-    return false;
+
+    try {
+      pb = new PocketBase(config.url);
+      pb.autoCancellation(false);
+      
+      if (config.email && config.password) {
+        await pb.collection('_superusers').authWithPassword(config.email, config.password);
+        console.log(`✅ Connecté à PocketBase : ${config.url}`);
+        return true;
+      } else {
+        console.warn('⚠️ Identifiants PocketBase manquants.');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Échec connexion PocketBase:', error.message);
+      return false;
+    }
   }
-}
 
-// Initialisation au démarrage du serveur
-initPocketBase();
+  // Initialisation au démarrage du serveur
+  initPocketBase();
 
-app.get('/api/admin/db-config', async (req, res) => {
+  app.get('/api/admin/db-config', async (req, res) => {
   const config = await getDbConfig();
   res.json({
     url: config.url || '',
@@ -304,10 +305,24 @@ app.post('/api/config', requirePb, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
 
-app.listen(PORT, () => {
-  console.log(`🚀 BuildScan Server démarré sur le port ${PORT}`);
-});
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 BuildScan Server démarré sur le port ${PORT}`);
+  });
+}
+
+startServer();

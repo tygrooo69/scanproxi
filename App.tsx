@@ -309,6 +309,10 @@ const App: React.FC = () => {
     }
   }, [addLog, clearLogs]);
 
+  const handleDataUpdate = useCallback((upd: Partial<ConstructionOrderData>) => {
+    setExtractedData(prev => prev ? ({ ...prev, ...upd }) : null);
+  }, []);
+
   const reset = () => {
     setStatus(AppStatus.IDLE);
     setExtractedData(null);
@@ -371,11 +375,10 @@ const App: React.FC = () => {
                           onClientMatchUpdate={(id) => { const s = potentialClients.find(c => c.id === id); if(s) setMappedClient(s); }}
                           chantierNumber={autoChantierNumber}
                           isFetchingChantier={isFetchingChantier}
-                          onUpdate={useCallback((upd: Partial<ConstructionOrderData>) => setExtractedData(prev => prev ? ({...prev, ...upd}) : null), [])}
+                          onUpdate={handleDataUpdate}
                           poseurs={allPoseurs}
                           selectedPoseurId={selectedPoseurId}
                           onPoseurSelect={setSelectedPoseurId}
-                          onChantierUpdate={setAutoChantierNumber}
                           onTransmit={handleTransmit}
                           isTransmitting={transmitting}
                           transmitStatus={transmitStatus}
