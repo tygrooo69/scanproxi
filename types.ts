@@ -14,6 +14,7 @@ export interface ConstructionOrderData {
   date_intervention: string | null;
   descriptif_travaux: string | null;
   categorie: string | null;
+  montant_ht: string | null;
 }
 
 export interface Poseur {

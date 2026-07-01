@@ -74,6 +74,7 @@ const ResultCard: React.FC<ResultCardProps> = ({
     { key: "nom_client", label: mappedClient ? "Libellé Client (ERP)" : "Nom Client (PDF)", icon: "fa-building", color: mappedClient ? "text-emerald-600" : "text-indigo-600" },
     { key: "date_intervention", label: "Date du Document", icon: "fa-file-signature", color: "text-purple-600" },
     { key: "delai_intervention", label: "Délai / Échéance", icon: "fa-calendar-alt", color: "text-orange-600" },
+    { key: "montant_ht", label: "Montant HT (€)", icon: "fa-euro-sign", color: "text-emerald-600" },
   ];
 
   return (

@@ -16,9 +16,10 @@ CHAMPS :
 - delai_intervention : Date d'échéance au format JJ/MM/AAAA.
 - date_intervention : Date du document au format JJ/MM/AAAA.
 - descriptif_travaux : Nature des travaux (EN MAJUSCULES, SANS ACCENTS).
+- montant_ht : Le montant total Hors Taxes (HT) figurant sur le document (ex: '150.00' ou '425.10'). Indique uniquement la valeur numérique, ou vide si non trouvé.
 
 RÈGLES :
-1. Ignore les montants financiers.
+1. Recherche attentivement le montant total Hors Taxes (HT).
 2. Formate TOUTES les dates en JJ/MM/AAAA.
 3. Retourne UNIQUEMENT un objet JSON valide.`;
 
@@ -36,6 +37,7 @@ const RESPONSE_SCHEMA = {
     delai_intervention: { type: Type.STRING },
     date_intervention: { type: Type.STRING },
     descriptif_travaux: { type: Type.STRING },
+    montant_ht: { type: Type.STRING },
   },
   required: ["num_bon_travaux", "adresse_1", "nom_client", "delai_intervention", "date_intervention", "descriptif_travaux"]
 };
@@ -77,6 +79,7 @@ export async function analyzeConstructionDocument(base64Data: string, mimeType: 
       data.descriptif_travaux = data.descriptif_travaux.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     }
     if (!data.gardien_email) data.gardien_email = "";
+    if (!data.montant_ht) data.montant_ht = "";
 
     return data;
   } catch (err) {

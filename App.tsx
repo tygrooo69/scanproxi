@@ -212,7 +212,8 @@ const App: React.FC = () => {
         date_intervention: extractedData.date_intervention || '',
         descriptif_travaux: extractedData.descriptif_travaux || '',
         poseur_nom: selectedPoseur?.nom || '',
-        poseur_code: selectedPoseur?.codeSalarie || ''
+        poseur_code: selectedPoseur?.codeSalarie || '',
+        montant_ht: extractedData.montant_ht || ''
       };
 
       // LOG DÉTAILLÉ DANS LE TERMINAL
