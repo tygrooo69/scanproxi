@@ -21,7 +21,8 @@ CHAMPS :
 RÈGLES :
 1. Recherche attentivement le montant total Hors Taxes (HT). Si aucun montant n'est trouvé, indique '50'.
 2. Formate TOUTES les dates en JJ/MM/AAAA.
-3. Retourne UNIQUEMENT un objet JSON valide.`;
+3. SI LE DOCUMENT CONTIENT la phrase de sécurité "Prévention du risque amiante merci de consulter le DTA avant interventions" (ou une formulation similaire concernant la prévention amiante et le DTA), le nom de client (nom_client) DOIT obligatoirement être "GHT 78 SUD".
+4. Retourne UNIQUEMENT un objet JSON valide.`;
 
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
